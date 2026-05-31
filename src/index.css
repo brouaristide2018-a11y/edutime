@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  body {
+    visibility: hidden;
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  #payslip-content {
+    visibility: visible !important;
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+  }
+
+  #payslip-content * {
+    visibility: visible !important;
+  }
+
+  /* Watermark style */
+  .payslip-watermark {
+    display: block !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) rotate(-30deg) !important;
+    width: 400px !important;
+    height: 400px !important;
+    opacity: 0.1 !important;
+    z-index: 0 !important;
+    pointer-events: none !important;
+    object-fit: contain !important;
+  }
+
+  /* Ensure content stays above watermark */
+  .payslip-content-wrapper {
+    position: relative !important;
+    z-index: 10 !important;
+    background: transparent !important;
+  }
+
+  /* Hide everything else */
+  .no-print,
+  .modal-backdrop,
+  header,
+  nav,
+  aside,
+  button,
+  footer {
+    display: none !important;
+  }
+}
+
+/* Hide watermark on screen */
+.payslip-watermark {
+  display: none;
+}

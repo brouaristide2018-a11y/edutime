@@ -1,0 +1,7 @@
+{
+  "name": "Remix: EduTime - Gestion des Heures Hetzner",
+  "description": "Application de gestion des heures de professeurs, plannings et paie.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

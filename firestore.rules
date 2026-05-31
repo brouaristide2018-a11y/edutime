@@ -1,0 +1,186 @@
+rules_version = '2';
+
+service cloud.firestore {
+    match /databases/{database}/documents {
+    // God Mode for Bootstrap Admins
+    match /{document=**} {
+      allow read, write: if request.auth != null && (
+        request.auth.token.get('email', '').lower() == "cydrovis@gmail.com" ||
+        request.auth.token.get('email', '').lower() == "superadmin@edutime.fr" ||
+        request.auth.token.get('email', '').lower() == "gnakalehermann@gmail.com"
+      );
+    }
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserId() {
+      return request.auth.token.get('email', request.auth.uid);
+    }
+
+    function getUserData() {
+      return exists(/databases/$(database)/documents/users/$(getUserId()))
+        ? get(/databases/$(database)/documents/users/$(getUserId())).data
+        : null;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.get('email', '').lower() == "cydrovis@gmail.com") ||
+        (request.auth.token.get('email', '').lower() == "superadmin@edutime.fr") ||
+        (getUserData() != null && getUserData().role == 'SuperAdmin')
+      );
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        isSuperAdmin() ||
+        (getUserData() != null && (getUserData().role == 'Admin' || getUserData().role == 'SuperAdmin'))
+      );
+    }
+
+    function isGestionnaire() {
+      return isAuthenticated() && getUserData() != null && getUserData().role == 'Gestionnaire';
+    }
+
+    function isProfesseur() {
+      return isAuthenticated() && getUserData() != null && getUserData().role == 'Professeur';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && (
+        request.auth.uid == userId || 
+        (request.auth.token.get('email', '').lower() == userId.lower()) ||
+        (getUserId().lower() == userId.lower())
+      );
+    }
+
+    // Auth Mappings collection
+    match /auth_mappings/{mappingId} {
+      allow read: if isAuthenticated() && request.auth.uid == mappingId;
+      allow write: if isAuthenticated() && request.auth.uid == mappingId;
+    }
+
+    // Registrations collection
+    match /registrations/{registrationId} {
+      allow read: if isSuperAdmin();
+      allow create: if true; // Allow anyone to register
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if true; // Public read allowed for loginId lookups and profile discovery
+      allow create: if true; // Allow initial user creation/bootstrap
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // Professors collection
+    match /professors/{professorId} {
+      allow read: if true; // Public read allowed for profile discovery in quick attendance
+      allow create, update, delete: if isAdmin() || isGestionnaire();
+    }
+
+    // Classes collection
+    match /classes/{classId} {
+      allow read: if true; // Public read allowed for quick attendance
+      allow create, update, delete: if isAdmin() || isGestionnaire();
+    }
+
+    // Subjects collection
+    match /subjects/{subjectId} {
+      allow read: if true; // Public read allowed for quick attendance
+      allow create, update, delete: if isAdmin() || isGestionnaire();
+    }
+
+    // Courses collection
+    match /courses/{courseId} {
+      allow read: if true; // Public read allowed for schedule discovery in quick attendance
+      allow create, update, delete: if isAdmin() || isGestionnaire();
+    }
+
+    // Attendances collection
+    match /attendances/{attendanceId} {
+      allow read: if true; // Public read allowed to check for duplicates in quick attendance
+      // Profs can create/update their own attendances
+      allow create: if true; // Allow creation for discovery/quick attendance
+      allow update: if isAdmin() || isGestionnaire() || isProfesseur();
+      allow delete: if isAdmin() || isGestionnaire();
+    }
+
+    // Payments collection
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() || isGestionnaire();
+      allow update: if isAdmin() || isGestionnaire() || (
+        isProfesseur() && 
+        resource.data.status == 'awaiting_approval' && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+        request.resource.data.status == 'paid' &&
+        get(/databases/$(database)/documents/professors/$(resource.data.professorId)).data.userId == getUserId()
+      );
+      allow delete: if isAdmin() || isGestionnaire();
+    }
+
+    // Rooms collection
+    match /rooms/{roomId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() || isGestionnaire();
+    }
+
+    // TimeSlots collection
+    match /timeSlots/{timeSlotId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() || isGestionnaire();
+    }
+
+    // Professor Requests collection
+    match /professor_requests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() || isGestionnaire() || isProfesseur();
+      allow update: if isAdmin() || isGestionnaire() || isProfesseur();
+      allow delete: if isAdmin() || isGestionnaire() || isProfesseur();
+    }
+
+    // Support Tickets collection
+    match /support_tickets/{ticketId} {
+      allow read: if isSuperAdmin() || (isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.senderId == request.auth.token.email));
+      allow create: if isAuthenticated() && (request.resource.data.senderId == request.auth.uid || request.resource.data.senderId == request.auth.token.email);
+      allow update: if isSuperAdmin() || (isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.senderId == request.auth.token.email));
+      allow delete: if isSuperAdmin();
+    }
+
+    // Subscription Plans collection
+    match /subscription_plans/{planId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // Subscriptions collection
+    match /subscriptions/{subscriptionId} {
+      allow read: if isSuperAdmin() || (isAuthenticated() && getUserData() != null && getUserData().schoolId == subscriptionId);
+      allow write: if isSuperAdmin() || (isAuthenticated() && getUserData() != null && getUserData().schoolId == subscriptionId && isAdmin());
+    }
+
+    // Platform settings config
+    match /platform/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // Announcements collection
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // Settings
+    match /settings/{document=**} {
+      allow read: if true; // Public read allowed for school config/tolerance lookup
+      allow write: if isAdmin();
+    }
+  }
+}

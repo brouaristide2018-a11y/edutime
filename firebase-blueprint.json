@@ -1,0 +1,234 @@
+{
+  "entities": {
+    "Professor": {
+      "title": "Professor",
+      "description": "A professor in the system",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "gender": { "type": "string", "enum": ["M", "F", "Autre"] },
+        "birthDate": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "specialty": { "type": "string" },
+        "contractType": { "type": "string", "enum": ["Temps plein", "Vacataire"] },
+        "hourlyRate": { "type": "number" },
+        "status": { "type": "string", "enum": ["Actif", "Inactif"] },
+        "hireDate": { "type": "string" },
+        "subjectIds": { "type": "array", "items": { "type": "string" } },
+        "availabilities": { "type": "array", "items": { "type": "object" } },
+        "userId": { "type": "string" }
+      },
+      "required": ["firstName", "lastName", "email", "contractType", "hourlyRate", "status"]
+    },
+    "Class": {
+      "title": "Class",
+      "description": "A class/group of students",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "level": { "type": "string", "enum": ["Primaire", "Collège", "Lycée"] },
+        "description": { "type": "string" },
+        "capacity": { "type": "number" },
+        "mainTeacherId": { "type": "string" },
+        "chefDeClasse": { "type": "string" },
+        "sousChefDeClasse": { "type": "string" },
+        "status": { "type": "string", "enum": ["Actif", "Inactif"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "level", "status", "createdAt"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "A subject taught in classes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "description": { "type": "string" },
+        "weeklyHours": { "type": "number" },
+        "color": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "code", "weeklyHours", "color", "createdAt"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "A scheduled course session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "professorId": { "type": "string" },
+        "classId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "roomId": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "status": { "type": "string", "enum": ["scheduled", "present", "absent", "late"] }
+      },
+      "required": ["professorId", "classId", "subjectId", "date", "startTime", "endTime", "status"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "An attendance record for a course",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "courseId": { "type": "string" },
+        "professorId": { "type": "string" },
+        "classId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "date": { "type": "string" },
+        "plannedStartTime": { "type": "string" },
+        "plannedEndTime": { "type": "string" },
+        "actualStartTime": { "type": "string" },
+        "actualEndTime": { "type": "string" },
+        "status": { "type": "string", "enum": ["present", "retard", "absent", "remplacement"] },
+        "replacementProfessorId": { "type": "string" },
+        "calculatedHours": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "scannedAt": { "type": "string" }
+      },
+      "required": ["professorId", "classId", "subjectId", "date", "plannedStartTime", "plannedEndTime", "status", "calculatedHours", "createdAt"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "A payment record for a professor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "professorId": { "type": "string" },
+        "month": { "type": "string" },
+        "amount": { "type": "number" },
+        "hours": { "type": "number" },
+        "normalHours": { "type": "number" },
+        "overtimeHours": { "type": "number" },
+        "missedHours": { "type": "number" },
+        "plannedHours": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "awaiting_approval", "paid"] },
+        "paidAt": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "reference": { "type": "string" }
+      },
+      "required": ["professorId", "month", "amount", "hours", "status"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "A physical room in the school",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "capacity": { "type": "number" },
+        "type": { "type": "string" }
+      },
+      "required": ["name", "capacity", "type"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user of the system",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "loginId": { "type": "string" },
+        "role": { "type": "string", "enum": ["Admin", "Gestionnaire", "Professeur"] },
+        "status": { "type": "string", "enum": ["Actif", "Inactif"] },
+        "lastLogin": { "type": "string" },
+        "permissions": { "type": "object" }
+      },
+      "required": ["name", "email", "role", "status"]
+    },
+    "TimeSlot": {
+      "title": "TimeSlot",
+      "description": "A predefined time slot for courses",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["Cours", "Recréation", "Après-Midi", "Devoir"] }
+      },
+      "required": ["startTime", "endTime", "type"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global application settings",
+      "type": "object",
+      "properties": {
+        "schoolName": { "type": "string" },
+        "logo": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "currency": { "type": "string" },
+        "timezone": { "type": "string" },
+        "dateFormat": { "type": "string" },
+        "language": { "type": "string" },
+        "toleranceTime": { "type": "number" },
+        "autoLateAfter": { "type": "number" },
+        "mandatoryAttendance": { "type": "boolean" },
+        "allowedMethods": { "type": "object" },
+        "validation": { "type": "object" },
+        "defaultHourlyRate": { "type": "number" },
+        "overtimeEnabled": { "type": "boolean" },
+        "overtimeCoefficient": { "type": "number" },
+        "deductions": { "type": "object" },
+        "rounding": { "type": "string" },
+        "notifications": { "type": "object" },
+        "security": { "type": "object" },
+        "integrations": { "type": "object" }
+      }
+    }
+  },
+  "firestore": {
+    "/professors/{professorId}": {
+      "schema": { "$ref": "#/entities/Professor" },
+      "description": "Professors collection"
+    },
+    "/classes/{classId}": {
+      "schema": { "$ref": "#/entities/Class" },
+      "description": "Classes collection"
+    },
+    "/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "Subjects collection"
+    },
+    "/courses/{courseId}": {
+      "schema": { "$ref": "#/entities/Course" },
+      "description": "Courses collection"
+    },
+    "/attendances/{attendanceId}": {
+      "schema": { "$ref": "#/entities/Attendance" },
+      "description": "Attendances collection"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/Payment" },
+      "description": "Payments collection"
+    },
+    "/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/Room" },
+      "description": "Rooms collection"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Users collection"
+    },
+    "/timeSlots/{timeSlotId}": {
+      "schema": { "$ref": "#/entities/TimeSlot" },
+      "description": "Time slots collection"
+    },
+    "/settings/global": {
+      "schema": { "$ref": "#/entities/Settings" },
+      "description": "Global settings document"
+    }
+  }
+}

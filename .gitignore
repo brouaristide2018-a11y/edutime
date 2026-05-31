@@ -1,0 +1,14 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+
+# Variables d'environnement (NE JAMAIS committer)
+.env
+.env.*
+!.env.example
+
+# Config Firebase réelle (contient des credentials sensibles)
+firebase-applet-config.json

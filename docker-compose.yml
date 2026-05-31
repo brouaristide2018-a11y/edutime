@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: react-app
+    restart: always
+    ports:
+      - "${PORT:-8080}:80"
+    environment:
+      # Inject necessary environment variables for the container here if needed.
+      # Note: For Vite apps, build args are used during the Docker build stage.
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
