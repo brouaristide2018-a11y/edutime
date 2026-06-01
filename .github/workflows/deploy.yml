@@ -48,8 +48,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
             GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=aristiderunco/edutime:buildcache
+          cache-to: type=registry,ref=aristiderunco/edutime:buildcache,mode=max
 
       # 6. Notifier Coolify pour redéployer
       - name: Trigger Coolify redeploy
