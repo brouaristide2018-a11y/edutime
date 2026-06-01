@@ -3,7 +3,7 @@ name: Build & Deploy EduTime
 on:
   push:
     branches: [main]
-  workflow_dispatch: # Permet de lancer manuellement depuis GitHub
+  workflow_dispatch:
 
 jobs:
   build-and-push:
@@ -11,50 +11,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout du code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Connexion à Docker Hub
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      # 3. Setup QEMU + Buildx (multi-platform)
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # 4. Générer les tags (latest + SHA court)
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: aristiderunco/edutime
-          tags: |
-            type=raw,value=latest
-            type=sha,prefix=,format=short
-
-      # 5. Build & Push (sans Firebase — stockage local uniquement)
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          build-args: |
-            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
-          cache-from: type=registry,ref=aristiderunco/edutime:buildcache
-          cache-to: type=registry,ref=aristiderunco/edutime:buildcache,mode=max
-
-      # 6. Notifier Coolify pour redéployer
-      - name: Trigger Coolify redeploy
-        if: success()
+      - name: Build Docker image
         run: |
-          curl -X GET "${{ secrets.COOLIFY_WEBHOOK_URL }}" \
-            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
-            --fail-with-body || echo "Coolify webhook optionnel - configurer plus tard"
+          docker build \
+            --build-arg GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+            -t aristiderunco/edutime:latest \
+            -t aristiderunco/edutime:${{ github.sha }} \
+            .
+
+      - name: Push to Docker Hub
+        run: |
+          docker push aristiderunco/edutime:latest
+          docker push aristiderunco/edutime:${{ github.sha }}
+
+      - name: Trigger Coolify redeploy
+        run: |
+          curl -s -X GET "${{ secrets.COOLIFY_WEBHOOK_URL }}" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" || true
