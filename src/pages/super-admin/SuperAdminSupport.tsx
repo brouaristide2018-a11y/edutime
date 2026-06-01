@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
 import { useStore } from '../../store';
-import { Send, MessageSquare, Clock, CheckCircle, Search, Filter } from 'lucide-react';
+import { Send, MessageSquare, Clock, CheckCircle, Search } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
 
 export function SuperAdminSupport() {
   const currentUser = useStore(state => state.currentUser);
-  const [tickets, setTickets] = useState<any[]>([]);
+  const supportTickets = useStore(state => state.supportTickets);
+  const updateSupportTicket = useStore(state => state.updateSupportTicket);
+
   const [activeTicket, setActiveTicket] = useState<any | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -15,80 +15,58 @@ export function SuperAdminSupport() {
   const [ticketToClose, setTicketToClose] = useState<any | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Filter tickets: last 7 days
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const tickets = [...supportTickets]
+    .filter(ticket => new Date(ticket.updatedAt) > sevenDaysAgo)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  // Keep active ticket in sync with store
   useEffect(() => {
-    // Filter out tickets older than 7 days
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    const q = query(
-      collection(db, 'support_tickets'),
-      orderBy('updatedAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedTickets = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as any))
-        .filter(ticket => new Date(ticket.updatedAt) > sevenDaysAgo);
-      
-      setTickets(fetchedTickets);
-      
-      if (activeTicket) {
-        const updatedActive = fetchedTickets.find(t => t.id === activeTicket.id);
-        if (updatedActive) setActiveTicket(updatedActive);
-      }
-    }, (error) => {
-      console.error("Error fetching support tickets (SuperAdmin):", error);
-    });
-
-    return () => unsubscribe();
-  }, [activeTicket]);
+    if (activeTicket) {
+      const updated = tickets.find(t => t.id === activeTicket.id);
+      if (updated) setActiveTicket(updated);
+    }
+  }, [supportTickets]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeTicket?.messages]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeTicket || !currentUser) return;
 
-    try {
-      const message = {
-        id: Date.now().toString(),
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        text: newMessage,
-        timestamp: new Date().toISOString()
-      };
+    const message = {
+      id: Date.now().toString(),
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      text: newMessage,
+      timestamp: new Date().toISOString()
+    };
 
-      const ticketRef = doc(db, 'support_tickets', activeTicket.id);
-      await updateDoc(ticketRef, {
-        messages: [...(activeTicket.messages || []), message],
-        updatedAt: new Date().toISOString(),
-        status: 'Ouvert' // Re-open if Super Admin replies
-      });
+    updateSupportTicket(activeTicket.id, {
+      messages: [...(activeTicket.messages || []), message],
+      updatedAt: new Date().toISOString(),
+      status: 'Ouvert'
+    });
 
-      setNewMessage('');
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
+    setNewMessage('');
   };
 
-  const handleCloseTicket = async () => {
+  const handleCloseTicket = () => {
     if (!ticketToClose) return;
-    try {
-      const ticketRef = doc(db, 'support_tickets', ticketToClose.id);
-      await updateDoc(ticketRef, {
-        status: 'Fermé',
-        updatedAt: new Date().toISOString()
-      });
-      setTicketToClose(null);
-    } catch (error) {
-      console.error("Error closing ticket:", error);
-    }
+    updateSupportTicket(ticketToClose.id, {
+      status: 'Fermé',
+      updatedAt: new Date().toISOString()
+    });
+    setTicketToClose(null);
   };
 
   const filteredTickets = tickets.filter(ticket => {
-    const matchesSearch = ticket.subject.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const matchesSearch = ticket.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           ticket.senderName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'Tous' || ticket.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -97,7 +75,7 @@ export function SuperAdminSupport() {
   return (
     <div className="p-8 h-screen flex flex-col">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Support Technique</h1>
-      
+
       <div className="flex-1 flex bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {/* Sidebar - Ticket List */}
         <div className="w-1/3 border-r border-gray-200 flex flex-col bg-gray-50">
@@ -118,8 +96,8 @@ export function SuperAdminSupport() {
                   key={status}
                   onClick={() => setStatusFilter(status)}
                   className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                    statusFilter === status 
-                      ? 'bg-indigo-100 text-indigo-700' 
+                    statusFilter === status
+                      ? 'bg-indigo-100 text-indigo-700'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
@@ -128,7 +106,7 @@ export function SuperAdminSupport() {
               ))}
             </div>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto">
             {filteredTickets.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
@@ -165,7 +143,6 @@ export function SuperAdminSupport() {
         <div className="flex-1 flex flex-col bg-white">
           {activeTicket ? (
             <>
-              {/* Chat Header */}
               <div className="p-4 border-b border-gray-200 bg-white flex justify-between items-center">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">{activeTicket.subject}</h2>
@@ -188,7 +165,6 @@ export function SuperAdminSupport() {
                 </div>
               </div>
 
-              {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
                 {activeTicket.messages?.length === 0 ? (
                   <div className="text-center text-gray-500 mt-10">
@@ -213,7 +189,6 @@ export function SuperAdminSupport() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Message Input */}
               <div className="p-4 bg-white border-t border-gray-200">
                 <form onSubmit={handleSendMessage} className="flex gap-2">
                   <input

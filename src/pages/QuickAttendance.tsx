@@ -19,8 +19,6 @@ import {
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { format, isToday, parseISO } from 'date-fns';
-import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 import { useStore } from '../store';
 import { clsx } from 'clsx';
 
@@ -136,23 +134,22 @@ export function QuickAttendance() {
 
   const handleVerifyId = async () => {
     if (!loginId.trim()) return;
-    
+
     setError('');
     setIsLoading(true);
-    
-    try {
-      // 1. Direct query to Firestore to find user by loginId
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('loginId', '==', loginId.trim()), limit(1));
-      const querySnapshot = await getDocs(q);
 
-      if (querySnapshot.empty) {
+    try {
+      const storeState = useStore.getState();
+
+      // 1. Find user by loginId in local store
+      const userData = storeState.users.find(u => u.loginId === loginId.trim());
+
+      if (!userData) {
         setError("ID de connexion non reconnu.");
         setIsLoading(false);
         return;
       }
 
-      const userData = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } as any;
       setMatchedUser(userData);
 
       if (!userData.email) {
@@ -162,26 +159,18 @@ export function QuickAttendance() {
       }
 
       // 2. Find professor linked to this user
-      const professorsRef = collection(db, 'professors');
-      const pq = query(professorsRef, where('userId', '==', userData.id), limit(1));
-      const pSnapshot = await getDocs(pq);
+      const profData = storeState.professors.find(p => p.userId === userData.id);
 
-      if (pSnapshot.empty) {
+      if (!profData) {
         setError("Profil professeur introuvable.");
         setIsLoading(false);
         return;
       }
 
-      const profData = { id: pSnapshot.docs[0].id, ...pSnapshot.docs[0].data() } as any;
       setMatchedProfessor(profData);
-      
-      // 3. Fetch school settings for tolerance
-      if (userData.schoolId) {
-        const settingsDoc = await getDoc(doc(db, 'settings', userData.schoolId));
-        if (settingsDoc.exists()) {
-          setSchoolSettings(settingsDoc.data());
-        }
-      }
+
+      // 3. Set school settings for tolerance
+      setSchoolSettings(storeState.settings);
 
       setStep('scan');
     } catch (err) {
@@ -208,7 +197,7 @@ export function QuickAttendance() {
       }
 
       const today = format(new Date(), 'yyyy-MM-dd');
-      
+
       if (parsed.type !== 'attendance') {
         throw new Error("Ce n'est pas un QR Code de pointage autorisé.");
       }
@@ -220,18 +209,13 @@ export function QuickAttendance() {
 
       const now = new Date();
       const currentTime = format(now, 'HH:mm');
-      
-      // Fetch today's courses
-      const coursesRef = collection(db, 'courses');
-      const cq = query(
-        coursesRef, 
-        where('professorId', '==', matchedProfessor.id), 
-        where('date', '==', today)
+
+      // Get today's courses from local store
+      const storeState = useStore.getState();
+      const todayProfCourses = storeState.courses.filter(
+        c => c.professorId === matchedProfessor.id && c.date === today
       );
-      
-      const cSnapshot = await getDocs(cq);
-      const todayProfCourses = cSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      
+
       if (todayProfCourses.length === 0) {
         throw new Error("Vous n'avez aucun cours programmé ce jour. Le pointage est donc impossible.");
       }
@@ -250,32 +234,28 @@ export function QuickAttendance() {
       });
 
       if (currentCourse) {
-        const attendancesRef = collection(db, 'attendances');
-        const aq = query(attendancesRef, where('courseId', '==', currentCourse.id), limit(1));
-        const aSnapshot = await getDocs(aq);
-        
-        if (!aSnapshot.empty) {
-           throw new Error("Votre présence pour ce cours (" + currentCourse.startTime + ") a déjà été enregistrée.");
+        // Check if attendance already recorded
+        const existingAttendance = storeState.attendances.find(a => a.courseId === currentCourse.id);
+        if (existingAttendance) {
+          throw new Error("Votre présence pour ce cours (" + currentCourse.startTime + ") a déjà été enregistrée.");
         }
 
         const [startH, startM] = currentCourse.startTime.split(':').map(Number);
         const courseStartMins = startH * 60 + startM;
         const [currH, currM] = currentTime.split(':').map(Number);
         const currentMins = currH * 60 + currM;
-        
+
         const tolerance = schoolSettings?.toleranceTime ?? 15;
         let status: 'present' | 'retard' = (currentMins - courseStartMins) > tolerance ? 'retard' : 'present';
 
-        // Fetch Class and Subject details for the confirmation form
-        const [classDoc, subjectDoc] = await Promise.all([
-          getDoc(doc(db, 'classes', currentCourse.classId)),
-          getDoc(doc(db, 'subjects', currentCourse.subjectId))
-        ]);
+        // Get class and subject details from store
+        const classData = storeState.classes.find(c => c.id === currentCourse.classId);
+        const subjectData = storeState.subjects.find(s => s.id === currentCourse.subjectId);
 
         const courseWithDetails = {
           ...currentCourse,
-          className: classDoc.exists() ? classDoc.data().name : 'Classe inconnue',
-          subjectName: subjectDoc.exists() ? subjectDoc.data().name : 'Matière inconnue'
+          className: classData?.name || 'Classe inconnue',
+          subjectName: subjectData?.name || 'Matière inconnue'
         };
 
         setMatchedCourse(courseWithDetails);

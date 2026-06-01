@@ -1,24 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building2, BookOpen, Clock, Shield, Users, ArrowRight, CheckCircle, Megaphone, QrCode, Menu, X } from 'lucide-react';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
 import { useStore } from '../store';
-
-interface PublicAnnouncement {
-  id: string;
-  title: string;
-  content: string;
-  type: 'announcement' | 'ad';
-  createdAt: number;
-}
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const [announcements, setAnnouncements] = useState<PublicAnnouncement[]>([]);
   const [currentBg, setCurrentBg] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const platformSettings = useStore(state => state.platformSettings);
+  const allAnnouncements = useStore(state => state.announcements);
+
+  // Public active announcements from store
+  const announcements = allAnnouncements
+    .filter(a => a.status === 'active' && a.isPublic)
+    .sort((a, b) => b.createdAt - a.createdAt);
 
   const defaultImages = [
     "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&q=80&w=2070",
@@ -40,25 +35,6 @@ export function LandingPage() {
     return () => clearInterval(timer);
   }, [bgImages.length, sliderDuration]);
 
-  useEffect(() => {
-    const fetchPublicAnnouncements = async () => {
-      try {
-        const snap = await getDocs(
-          query(
-            collection(db, 'announcements'), 
-            where('status', '==', 'active'),
-            where('isPublic', '==', true),
-            orderBy('createdAt', 'desc')
-          )
-        );
-        const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PublicAnnouncement));
-        setAnnouncements(data);
-      } catch (error) {
-        console.error("Error fetching public announcements:", error);
-      }
-    };
-    fetchPublicAnnouncements();
-  }, []);
 
   const scrollTo = (id: string) => {
     setIsMobileMenuOpen(false);

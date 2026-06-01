@@ -9,6 +9,3 @@ coverage/
 .env
 .env.*
 !.env.example
-
-# Config Firebase réelle (contient des credentials sensibles)
-firebase-applet-config.json

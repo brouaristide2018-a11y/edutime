@@ -1,34 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
 import { useStore } from '../store';
 import { Clock, Megaphone, Info, CreditCard } from 'lucide-react';
-
-interface SubscriptionPlan {
-  id: string;
-  name: string;
-  price: number;
-  billingCycle: 'monthly' | 'yearly';
-  features: string[];
-  status: 'active' | 'inactive';
-  paymentLink?: string;
-  paymentQrCode?: string;
-}
-
-interface Announcement {
-  id: string;
-  title: string;
-  content: string;
-  type: 'announcement' | 'ad';
-  createdAt: number;
-}
+import type { SubscriptionPlan, Announcement } from '../store';
 
 export function AdminHome() {
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [showPlansModal, setShowPlansModal] = useState(false);
-  const [loading, setLoading] = useState(true);
+
+  const allAnnouncements = useStore(state => state.announcements);
+  const subscriptionPlans = useStore(state => state.subscriptionPlans);
+
+  // Active announcements visible to admin
+  const announcements: Announcement[] = allAnnouncements.filter(a => a.status === 'active');
+
+  // Active subscription plans
+  const plans: SubscriptionPlan[] = subscriptionPlans.filter(p => p.status === 'active');
 
   // Clock Update
   useEffect(() => {
@@ -53,32 +39,11 @@ export function AdminHome() {
     }).format(date);
   };
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // Fetch Plans
-      const plansSnap = await getDocs(query(collection(db, 'subscription_plans'), where('status', '==', 'active')));
-      setPlans(plansSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubscriptionPlan)));
-
-      // Fetch Announcements & Ads (Internal)
-      const annSnap = await getDocs(query(collection(db, 'announcements'), where('status', '==', 'active'), orderBy('createdAt', 'desc')));
-      setAnnouncements(annSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement)));
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   return (
     <div className="space-y-6">
       {/* Top Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* Clock Section */}
         <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-4 sm:p-6 shadow-sm text-white flex flex-col justify-center items-center relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10 hidden sm:block">
@@ -137,10 +102,8 @@ export function AdminHome() {
           <Megaphone className="text-indigo-600" size={24} />
           Annonces & Pubs
         </h2>
-        
-        {loading ? (
-          <p className="text-gray-500 text-center py-8">Chargement des actualités...</p>
-        ) : announcements.length === 0 ? (
+
+        {announcements.length === 0 ? (
           <p className="text-gray-500 text-center py-8 italic bg-gray-50 rounded-xl">Aucune annonce pour le moment.</p>
         ) : (
           <div className="space-y-4">
@@ -168,7 +131,7 @@ export function AdminHome() {
           <div className="bg-gray-50 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl relative">
             <div className="sticky top-0 bg-white/90 backdrop-blur-md border-b border-gray-200 p-6 flex justify-between items-center z-10">
               <h2 className="text-2xl font-bold text-gray-900">Nos Plans d'Abonnement</h2>
-              <button 
+              <button
                 onClick={() => setShowPlansModal(false)}
                 className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
               >
@@ -191,11 +154,11 @@ export function AdminHome() {
                           <span className="text-sm text-gray-500 font-medium">FCFA / {plan.billingCycle === 'monthly' ? 'mois' : 'an'}</span>
                         </div>
                       </div>
-                      
+
                       <ul className="space-y-3 flex-1 mb-6">
                         {plan.features.map((feature, idx) => (
                           <li key={idx} className="flex gap-2 text-sm text-gray-600">
-                            <span className="text-indigo-500">✓</span>
+                            <span className="text-indigo-500">&#10003;</span>
                             <span>{feature}</span>
                           </li>
                         ))}
@@ -204,9 +167,9 @@ export function AdminHome() {
                       <div className="bg-gray-50 rounded-lg p-4 space-y-4">
                         <h4 className="text-sm font-semibold text-gray-900 text-center">Moyens de paiement</h4>
                         {plan.paymentLink && (
-                          <a 
-                            href={plan.paymentLink} 
-                            target="_blank" 
+                          <a
+                            href={plan.paymentLink}
+                            target="_blank"
                             rel="noopener noreferrer"
                             className="block w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-center rounded-lg text-sm font-medium transition-colors"
                           >

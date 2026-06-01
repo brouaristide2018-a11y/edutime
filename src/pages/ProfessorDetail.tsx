@@ -7,62 +7,19 @@ import {
   ArrowLeft, Mail, Phone, MapPin, Calendar, Clock, BookOpen, 
   Briefcase, CheckCircle2, XCircle, Building2, Globe, ExternalLink 
 } from 'lucide-react';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 
 export function ProfessorDetail({ professorId, onBack }: { professorId?: string, onBack?: () => void }) {
   const params = useParams<{ id: string }>();
   const id = professorId || params.id;
   const navigate = useNavigate();
   const { professors, courses, subjects, classes, settings } = useStore();
-  const [otherSchools, setOtherSchools] = useState<any[]>([]);
-  const [loadingSchools, setLoadingSchools] = useState(false);
+  const [otherSchools] = useState<any[]>([]);
+  const [loadingSchools] = useState(false);
 
   const professor = professors.find(p => p.id === id);
 
-  useEffect(() => {
-    const fetchOtherSchools = async () => {
-      if (!professor?.email) return;
-      
-      setLoadingSchools(true);
-      try {
-        const professorsRef = collection(db, 'professors');
-        const q = query(professorsRef, where('email', '==', professor.email.trim()));
-        const querySnapshot = await getDocs(q);
-        
-        const schoolIds = new Set<string>();
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.schoolId !== professor.schoolId) {
-            schoolIds.add(data.schoolId);
-          }
-        });
-
-        if (schoolIds.size === 0) {
-          setOtherSchools([]);
-          return;
-        }
-
-        const schoolsData = await Promise.all(
-            Array.from(schoolIds).map(async (sId) => {
-                const settingsDoc = await getDoc(doc(db, 'settings', sId));
-                if (settingsDoc.exists()) {
-                    return { id: sId, ...settingsDoc.data() };
-                }
-                return null;
-            })
-        );
-
-        setOtherSchools(schoolsData.filter(s => s !== null));
-      } catch (error) {
-        console.error("Error fetching other schools:", error);
-      } finally {
-        setLoadingSchools(false);
-      }
-    };
-
-    fetchOtherSchools();
-  }, [professor?.email, professor?.schoolId]);
+  // In local mode, multi-school detection is not available (all data is per-school in localStorage)
+  // otherSchools will always be empty
 
   const handleBack = () => {
     if (onBack) {

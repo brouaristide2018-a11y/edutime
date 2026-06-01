@@ -1,8 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { firestoreActions } from './firebaseSync';
-import { auth } from './firebase';
-import { signOut } from 'firebase/auth';
 
 export type ContractType = 'Temps plein' | 'Vacataire';
 export type ProfessorStatus = 'Actif' | 'Inactif';
@@ -113,7 +110,7 @@ export interface ProfessorRequest {
   professorId: string;
   type: RequestType;
   date: string; // YYYY-MM-DD
-  courseId?: string; // Optional, if it's for a specific course
+  courseId?: string;
   reason: string;
   status: RequestStatus;
   createdAt: string;
@@ -144,7 +141,7 @@ export interface TimeSlot {
   schoolId: string;
   startTime: string; // HH:mm
   endTime: string; // HH:mm
-  name?: string; // e.g., "M1", "S1"
+  name?: string;
   type?: 'Cours' | 'Recréation' | 'Après-Midi' | 'Devoir';
 }
 
@@ -152,7 +149,7 @@ export interface Course {
   id: string;
   schoolId: string;
   professorId: string;
-  professorEmail?: string; // For cross-school conflict detection
+  professorEmail?: string;
   classId: string;
   subjectId: string;
   roomId?: string;
@@ -179,7 +176,7 @@ export interface SchoolSubscription {
 export interface PublicSiteConfig {
   logoUrl: string;
   heroBgImages: string[];
-  sliderDuration: number; // in milliseconds
+  sliderDuration: number;
   heroTitle: string;
   heroSubtitle: string;
 }
@@ -191,9 +188,7 @@ export interface PlatformSettings {
   publicSite?: PublicSiteConfig;
 }
 
-
 export interface Settings {
-  // Établissement
   schoolName: string;
   schoolYear?: string;
   logo: string;
@@ -204,10 +199,8 @@ export interface Settings {
   timezone: string;
   dateFormat: string;
   language: string;
-
-  // Règles de pointage
-  toleranceTime: number; // minutes
-  autoLateAfter: number; // minutes
+  toleranceTime: number;
+  autoLateAfter: number;
   mandatoryAttendance: boolean;
   allowedMethods: {
     manual: boolean;
@@ -218,8 +211,6 @@ export interface Settings {
     auto: boolean;
     admin: boolean;
   };
-
-  // Règles de paie
   defaultHourlyRate: number;
   overtimeEnabled: boolean;
   overtimeCoefficient: number;
@@ -228,9 +219,7 @@ export interface Settings {
     lateness: boolean;
     advance: boolean;
   };
-  rounding: '15' | '30' | '60'; // minutes
-
-  // Notifications
+  rounding: '15' | '30' | '60';
   notifications: {
     email: boolean;
     sms: boolean;
@@ -241,22 +230,16 @@ export interface Settings {
       paymentMade: boolean;
     };
   };
-
-  // Sécurité
   security: {
     minPasswordLength: number;
     twoFactorAuth: boolean;
-    sessionExpiration: number; // minutes
+    sessionExpiration: number;
   };
-
-  // Intégrations
   integrations: {
     googleCalendar: boolean;
     excelExport: boolean;
     mobileMoney: boolean;
   };
-
-  // Modules (Toggle features for schools)
   modules?: {
     professors?: boolean;
     classes?: boolean;
@@ -266,8 +249,6 @@ export interface Settings {
     payroll?: boolean;
     support?: boolean;
   };
-
-  // Abonnement (Subscription limits and status)
   subscription?: {
     plan: 'Essai' | 'Basique' | 'Pro' | 'Premium';
     trialStartDate: string;
@@ -301,6 +282,63 @@ export interface User {
   };
 }
 
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  type: 'announcement' | 'ad';
+  createdAt: number;
+  isPublic: boolean;
+  status: 'active' | 'inactive';
+}
+
+export interface Registration {
+  id: string;
+  nomEtablissement: string;
+  emailEtablissement: string;
+  codeEtablissement?: string;
+  directeurNom?: string;
+  directeurPrenom?: string;
+  directeurEmail?: string;
+  etablissementContact1?: string;
+  drena?: string;
+  adresse?: string;
+  ville?: string;
+  schoolId: string;
+  status: 'En attente' | 'Validé' | 'Rejeté' | 'Suspendu';
+  createdAt: string;
+  [key: string]: any;
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  price: number;
+  billingCycle: 'monthly' | 'yearly';
+  features: string[];
+  status: 'active' | 'inactive';
+  paymentLink?: string;
+  paymentQrCode?: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  subject: string;
+  senderId: string;
+  senderName: string;
+  senderRole: string;
+  status: 'Ouvert' | 'Fermé';
+  createdAt: string;
+  updatedAt: string;
+  messages: {
+    id: string;
+    senderId: string;
+    senderName: string;
+    text: string;
+    timestamp: string;
+  }[];
+}
+
 interface AppState {
   professors: Professor[];
   classes: Class[];
@@ -316,7 +354,12 @@ interface AppState {
   professorRequests: ProfessorRequest[];
   schoolSubscription: SchoolSubscription | null;
   platformSettings: PlatformSettings | null;
-  
+  registrations: Registration[];
+  subscriptions: any[];
+  announcements: Announcement[];
+  subscriptionPlans: SubscriptionPlan[];
+  supportTickets: SupportTicket[];
+
   addTimeSlot: (slot: Omit<TimeSlot, 'id' | 'schoolId'>) => void;
   updateTimeSlot: (id: string, slot: Partial<TimeSlot>) => void;
   deleteTimeSlot: (id: string) => void;
@@ -325,41 +368,42 @@ interface AppState {
   currentUser: User | null;
   setCurrentUser: (user: User | null) => void;
   setStore: (state: Partial<AppState>) => void;
-  
+
   updateSettings: (settings: Partial<Settings>) => void;
-  
+  updatePlatformSettings: (settings: Partial<PlatformSettings>) => void;
+
   addProfessor: (prof: Omit<Professor, 'id' | 'schoolId'>) => void;
   updateProfessor: (id: string, prof: Partial<Professor>) => void;
   deleteProfessor: (id: string) => Promise<void>;
- 
+
   addClass: (cls: Omit<Class, 'id' | 'schoolId'>) => void;
   updateClass: (id: string, cls: Partial<Class>) => void;
   deleteClass: (id: string) => void;
- 
+
   addSubject: (sub: Omit<Subject, 'id' | 'schoolId'>) => void;
   updateSubject: (id: string, sub: Partial<Subject>) => void;
   deleteSubject: (id: string) => void;
- 
+
   assignProfessorToClassSubject: (assignment: Omit<ClassSubjectProfessor, 'id' | 'schoolId'>) => void;
   removeAssignment: (id: string) => void;
- 
+
   addCourse: (course: Omit<Course, 'id' | 'status' | 'schoolId'>) => void;
   updateCourse: (id: string, course: Partial<Course>) => void;
   updateCourseStatus: (id: string, status: CourseStatus) => void;
   deleteCourse: (id: string) => void;
- 
+
   addRoom: (room: Omit<Room, 'id' | 'schoolId'>) => void;
   updateRoom: (id: string, room: Partial<Room>) => void;
   deleteRoom: (id: string) => void;
- 
+
   addAttendance: (attendance: Omit<Attendance, 'id' | 'createdAt' | 'schoolId'> & { schoolId?: string }) => void;
   updateAttendance: (id: string, attendance: Partial<Attendance>) => void;
   deleteAttendance: (id: string) => void;
- 
+
   addPayment: (payment: Omit<Payment, 'id' | 'schoolId'>) => void;
   updatePayment: (id: string, payment: Partial<Payment>) => void;
   deletePayment: (id: string) => void;
- 
+
   addProfessorRequest: (request: Omit<ProfessorRequest, 'id' | 'createdAt' | 'updatedAt' | 'schoolId'>) => void;
   updateProfessorRequest: (id: string, request: Partial<ProfessorRequest>) => void;
   deleteProfessorRequest: (id: string) => void;
@@ -367,6 +411,26 @@ interface AppState {
   addUser: (user: Omit<User, 'id'> | User) => string;
   updateUser: (id: string, user: Partial<User>) => void;
   deleteUser: (id: string) => Promise<void>;
+
+  addRegistration: (registration: Omit<Registration, 'id'>) => string;
+  updateRegistration: (id: string, registration: Partial<Registration>) => void;
+  deleteRegistration: (id: string) => void;
+
+  addSubscription: (subscription: any) => string;
+  updateSubscription: (id: string, subscription: any) => void;
+  deleteSubscription: (id: string) => void;
+
+  addAnnouncement: (announcement: Omit<Announcement, 'id'>) => string;
+  updateAnnouncement: (id: string, announcement: Partial<Announcement>) => void;
+  deleteAnnouncement: (id: string) => void;
+
+  addSubscriptionPlan: (plan: Omit<SubscriptionPlan, 'id'>) => string;
+  updateSubscriptionPlan: (id: string, plan: Partial<SubscriptionPlan>) => void;
+  deleteSubscriptionPlan: (id: string) => void;
+
+  addSupportTicket: (ticket: Omit<SupportTicket, 'id'>) => string;
+  updateSupportTicket: (id: string, ticket: Partial<SupportTicket>) => void;
+  deleteSupportTicket: (id: string) => void;
 
   login: (identifier: string, password?: string) => boolean;
   logout: () => void;
@@ -391,6 +455,11 @@ export const useStore = create<AppState>()(
       users: [],
       schoolSubscription: null,
       platformSettings: null,
+      registrations: [],
+      subscriptions: [],
+      announcements: [],
+      subscriptionPlans: [],
+      supportTickets: [],
       settings: {
         schoolName: 'EduTime Academy',
         logo: '',
@@ -445,38 +514,69 @@ export const useStore = create<AppState>()(
       },
 
       updateSettings: (newSettings) => {
-        firestoreActions.updateSettings(newSettings);
         set((state) => ({ settings: { ...state.settings, ...newSettings } }));
       },
 
+      updatePlatformSettings: (newSettings) => {
+        set((state) => ({
+          platformSettings: state.platformSettings
+            ? { ...state.platformSettings, ...newSettings }
+            : { paymentLink: '', paymentQrCode: '', supportContact: '', ...newSettings }
+        }));
+      },
+
       addProfessor: (prof) => {
-        firestoreActions.addProfessor(prof);
+        const schoolId = get().currentUser?.schoolId || '';
+        const id = generateId();
+        set((state) => ({
+          professors: [...state.professors, { ...prof, id, schoolId }]
+        }));
       },
       updateProfessor: (id, updatedProf) => {
-        firestoreActions.updateProfessor(id, updatedProf);
+        set((state) => ({
+          professors: state.professors.map(p => p.id === id ? { ...p, ...updatedProf } : p)
+        }));
       },
       deleteProfessor: async (id) => {
-        await firestoreActions.deleteProfessor(id);
+        set((state) => ({
+          professors: state.professors.filter(p => p.id !== id)
+        }));
       },
 
       addClass: (cls) => {
-        firestoreActions.addClass({ ...cls, createdAt: new Date().toISOString() });
+        const schoolId = get().currentUser?.schoolId || '';
+        const id = generateId();
+        set((state) => ({
+          classes: [...state.classes, { ...cls, id, schoolId, createdAt: new Date().toISOString() }]
+        }));
       },
       updateClass: (id, updatedCls) => {
-        firestoreActions.updateClass(id, updatedCls);
+        set((state) => ({
+          classes: state.classes.map(c => c.id === id ? { ...c, ...updatedCls } : c)
+        }));
       },
       deleteClass: (id) => {
-        firestoreActions.deleteClass(id);
+        set((state) => ({
+          classes: state.classes.filter(c => c.id !== id)
+        }));
       },
 
       addSubject: (sub) => {
-        firestoreActions.addSubject({ ...sub, createdAt: new Date().toISOString() });
+        const schoolId = get().currentUser?.schoolId || '';
+        const id = generateId();
+        set((state) => ({
+          subjects: [...state.subjects, { ...sub, id, schoolId, createdAt: new Date().toISOString() }]
+        }));
       },
       updateSubject: (id, updatedSub) => {
-        firestoreActions.updateSubject(id, updatedSub);
+        set((state) => ({
+          subjects: state.subjects.map(s => s.id === id ? { ...s, ...updatedSub } : s)
+        }));
       },
       deleteSubject: (id) => {
-        firestoreActions.deleteSubject(id);
+        set((state) => ({
+          subjects: state.subjects.filter(s => s.id !== id)
+        }));
       },
 
       assignProfessorToClassSubject: (assignment) => {
@@ -494,88 +594,293 @@ export const useStore = create<AppState>()(
       },
 
       addCourse: (course) => {
-        firestoreActions.addCourse({ ...course, status: 'scheduled' });
+        const state = get();
+        const schoolId = state.currentUser?.schoolId || '';
+        const professor = state.professors.find(p => p.id === course.professorId);
+        const id = generateId();
+        set((s) => ({
+          courses: [...s.courses, {
+            ...course,
+            id,
+            schoolId,
+            status: 'scheduled',
+            professorEmail: professor?.email
+          }]
+        }));
       },
       updateCourse: (id, updatedCourse) => {
-        firestoreActions.updateCourse(id, updatedCourse);
+        set((state) => ({
+          courses: state.courses.map(c => c.id === id ? { ...c, ...updatedCourse } : c)
+        }));
       },
       updateCourseStatus: (id, status) => {
-        firestoreActions.updateCourse(id, { status });
+        set((state) => ({
+          courses: state.courses.map(c => c.id === id ? { ...c, status } : c)
+        }));
       },
       deleteCourse: (id) => {
-        firestoreActions.deleteCourse(id);
+        set((state) => ({
+          courses: state.courses.filter(c => c.id !== id)
+        }));
       },
 
       addRoom: (room) => {
-        firestoreActions.addRoom(room);
+        const schoolId = get().currentUser?.schoolId || '';
+        const id = generateId();
+        set((state) => ({
+          rooms: [...state.rooms, { ...room, id, schoolId }]
+        }));
       },
       updateRoom: (id, updatedRoom) => {
-        firestoreActions.updateRoom(id, updatedRoom);
+        set((state) => ({
+          rooms: state.rooms.map(r => r.id === id ? { ...r, ...updatedRoom } : r)
+        }));
       },
       deleteRoom: (id) => {
-        firestoreActions.deleteRoom(id);
+        set((state) => ({
+          rooms: state.rooms.filter(r => r.id !== id)
+        }));
       },
 
       addAttendance: (attendance) => {
-        firestoreActions.addAttendance(attendance);
+        const schoolId = attendance.schoolId || get().currentUser?.schoolId || '';
+        const id = generateId();
+        set((state) => ({
+          attendances: [...state.attendances, {
+            ...attendance,
+            id,
+            schoolId,
+            createdAt: new Date().toISOString()
+          }]
+        }));
       },
       updateAttendance: (id, updatedAttendance) => {
-        firestoreActions.updateAttendance(id, updatedAttendance);
+        set((state) => ({
+          attendances: state.attendances.map(a => a.id === id ? { ...a, ...updatedAttendance } : a)
+        }));
       },
       deleteAttendance: (id) => {
-        firestoreActions.deleteAttendance(id);
+        set((state) => ({
+          attendances: state.attendances.filter(a => a.id !== id)
+        }));
       },
 
       addPayment: (payment) => {
-        firestoreActions.addPayment(payment);
+        const schoolId = get().currentUser?.schoolId || '';
+        const id = generateId();
+        set((state) => ({
+          payments: [...state.payments, { ...payment, id, schoolId }]
+        }));
       },
       updatePayment: (id, updatedPayment) => {
-        firestoreActions.updatePayment(id, updatedPayment);
+        set((state) => ({
+          payments: state.payments.map(p => p.id === id ? { ...p, ...updatedPayment } : p)
+        }));
       },
       deletePayment: (id) => {
-        firestoreActions.deletePayment(id);
+        set((state) => ({
+          payments: state.payments.filter(p => p.id !== id)
+        }));
       },
 
       addUser: (user) => {
-        const id = user.email || user.loginId || Math.random().toString(36).substr(2, 9);
-        firestoreActions.addUser({ ...user, id });
+        const id = (user as any).id || (user as any).email || (user as any).loginId || generateId();
+        const schoolId = get().currentUser?.schoolId || (user as any).schoolId || '';
+        set((state) => ({
+          users: [...state.users.filter(u => u.id !== id), { ...user, id, schoolId } as User]
+        }));
         return id;
       },
       updateUser: (id, user) => {
-        firestoreActions.updateUser(id, user);
+        set((state) => ({
+          users: state.users.map(u => u.id === id ? { ...u, ...user } : u)
+        }));
       },
       deleteUser: async (id) => {
-        await firestoreActions.deleteUser(id);
+        set((state) => ({
+          users: state.users.filter(u => u.id !== id)
+        }));
       },
 
       addTimeSlot: (slot) => {
-        firestoreActions.addTimeSlot(slot);
+        const schoolId = get().currentUser?.schoolId || '';
+        const id = generateId();
+        set((state) => ({
+          timeSlots: [...state.timeSlots, { ...slot, id, schoolId }]
+        }));
       },
       updateTimeSlot: (id, slot) => {
-        firestoreActions.updateTimeSlot(id, slot);
+        set((state) => ({
+          timeSlots: state.timeSlots.map(t => t.id === id ? { ...t, ...slot } : t)
+        }));
       },
       deleteTimeSlot: (id) => {
-        firestoreActions.deleteTimeSlot(id);
+        set((state) => ({
+          timeSlots: state.timeSlots.filter(t => t.id !== id)
+        }));
       },
 
       addProfessorRequest: (request) => {
-        firestoreActions.addProfessorRequest(request);
+        const schoolId = get().currentUser?.schoolId || '';
+        const id = generateId();
+        const now = new Date().toISOString();
+        set((state) => ({
+          professorRequests: [...state.professorRequests, {
+            ...request,
+            id,
+            schoolId,
+            createdAt: now,
+            updatedAt: now
+          }]
+        }));
       },
       updateProfessorRequest: (id, request) => {
-        firestoreActions.updateProfessorRequest(id, request);
+        set((state) => ({
+          professorRequests: state.professorRequests.map(r =>
+            r.id === id ? { ...r, ...request, updatedAt: new Date().toISOString() } : r
+          )
+        }));
       },
       deleteProfessorRequest: (id) => {
-        firestoreActions.deleteProfessorRequest(id);
+        set((state) => ({
+          professorRequests: state.professorRequests.filter(r => r.id !== id)
+        }));
+      },
+
+      addRegistration: (registration) => {
+        const id = generateId();
+        const fullRegistration: Registration = {
+          nomEtablissement: registration.nomEtablissement || '',
+          emailEtablissement: registration.emailEtablissement || '',
+          schoolId: registration.schoolId || '',
+          status: registration.status || 'En attente',
+          createdAt: registration.createdAt || new Date().toISOString(),
+          ...registration,
+          id
+        };
+        set((state) => ({
+          registrations: [...state.registrations, fullRegistration]
+        }));
+        return id;
+      },
+      updateRegistration: (id, registration) => {
+        set((state) => ({
+          registrations: state.registrations.map(r => r.id === id ? { ...r, ...registration } : r)
+        }));
+      },
+      deleteRegistration: (id) => {
+        set((state) => ({
+          registrations: state.registrations.filter(r => r.id !== id)
+        }));
+      },
+
+      addSubscription: (subscription) => {
+        const id = subscription.id || generateId();
+        set((state) => ({
+          subscriptions: [...state.subscriptions.filter(s => s.id !== id), { ...subscription, id }]
+        }));
+        return id;
+      },
+      updateSubscription: (id, subscription) => {
+        set((state) => ({
+          subscriptions: state.subscriptions.map(s => s.id === id ? { ...s, ...subscription } : s)
+        }));
+      },
+      deleteSubscription: (id) => {
+        set((state) => ({
+          subscriptions: state.subscriptions.filter(s => s.id !== id)
+        }));
+      },
+
+      addAnnouncement: (announcement) => {
+        const id = generateId();
+        set((state) => ({
+          announcements: [{ ...announcement, id }, ...state.announcements]
+        }));
+        return id;
+      },
+      updateAnnouncement: (id, announcement) => {
+        set((state) => ({
+          announcements: state.announcements.map(a => a.id === id ? { ...a, ...announcement } : a)
+        }));
+      },
+      deleteAnnouncement: (id) => {
+        set((state) => ({
+          announcements: state.announcements.filter(a => a.id !== id)
+        }));
+      },
+
+      addSubscriptionPlan: (plan) => {
+        const id = generateId();
+        set((state) => ({
+          subscriptionPlans: [...state.subscriptionPlans, { ...plan, id }]
+        }));
+        return id;
+      },
+      updateSubscriptionPlan: (id, plan) => {
+        set((state) => ({
+          subscriptionPlans: state.subscriptionPlans.map(p => p.id === id ? { ...p, ...plan } : p)
+        }));
+      },
+      deleteSubscriptionPlan: (id) => {
+        set((state) => ({
+          subscriptionPlans: state.subscriptionPlans.filter(p => p.id !== id)
+        }));
+      },
+
+      addSupportTicket: (ticket) => {
+        const id = generateId();
+        set((state) => ({
+          supportTickets: [{ ...ticket, id }, ...state.supportTickets]
+        }));
+        return id;
+      },
+      updateSupportTicket: (id, ticket) => {
+        set((state) => ({
+          supportTickets: state.supportTickets.map(t => t.id === id ? { ...t, ...ticket } : t)
+        }));
+      },
+      deleteSupportTicket: (id) => {
+        set((state) => ({
+          supportTickets: state.supportTickets.filter(t => t.id !== id)
+        }));
       },
 
       setCurrentUser: (user) => set({ currentUser: user }),
       setStore: (newState) => set(newState),
-      login: () => {
-        // Obsolete: authentication is handled in Login.tsx via Firebase Auth
+      login: (identifier: string, password?: string) => {
+        const state = get();
+        // SuperAdmin shortcut
+        if ((identifier === '26' || identifier === 'cydrovis@gmail.com') && password === 'admin123') {
+          const superAdmin: User = {
+            id: 'super-admin',
+            name: 'Super Administrateur',
+            role: 'SuperAdmin',
+            email: 'cydrovis@gmail.com',
+            status: 'Actif',
+            permissions: {
+              planning: { view: true, add: true, edit: true, delete: true },
+              payroll: { view: true, add: true, edit: true, delete: true },
+              users: { view: true, add: true, edit: true, delete: true },
+              settings: { view: true, add: true, edit: true, delete: true },
+            }
+          };
+          set({ currentUser: superAdmin });
+          return true;
+        }
+        // Search in local users
+        const user = state.users.find(u =>
+          (u.email === identifier || u.loginId === identifier ||
+           u.schoolCode === identifier || u.schoolEmail === identifier) &&
+          u.password === password
+        );
+        if (user) {
+          set({ currentUser: user });
+          return true;
+        }
         return false;
       },
       logout: () => {
-        signOut(auth).catch(console.error);
         set({ currentUser: null });
       },
     }),

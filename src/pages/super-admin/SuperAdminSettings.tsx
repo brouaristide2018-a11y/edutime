@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../store';
 import { Save, Image as ImageIcon, Layout, Loader, Plus, Trash2, Upload } from 'lucide-react';
-import { doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../../firebase';
 
 export function SuperAdminSettings() {
   const platformSettings = useStore(state => state.platformSettings);
+  const updatePlatformSettings = useStore(state => state.updatePlatformSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  
+
   const [config, setConfig] = useState({
     logoUrl: platformSettings?.publicSite?.logoUrl || '',
     heroTitle: platformSettings?.publicSite?.heroTitle || 'La gestion scolaire réinventée pour demain.',
@@ -50,7 +48,6 @@ export function SuperAdminSettings() {
           let width = img.width;
           let height = img.height;
 
-          // Constraints
           const maxWidth = isLogo ? 400 : 1280;
           const maxHeight = isLogo ? 400 : 720;
 
@@ -64,15 +61,14 @@ export function SuperAdminSettings() {
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           if (!ctx) return reject(new Error('Canvas context failed'));
-          
+
           ctx.drawImage(img, 0, 0, width, height);
-          
-          // For logo, keep PNG transparency, else use JPEG for bg compression
+
           const mimeType = isLogo && file.type === 'image/png' ? 'image/png' : 'image/jpeg';
           const quality = isLogo && mimeType === 'image/png' ? undefined : 0.6;
-          
+
           const dataUrl = canvas.toDataURL(mimeType, quality);
-          
+
           if (dataUrl.length > 800000) {
             reject(new Error('Image trop volumineuse même après compression. Veuillez essayer une autre image plus petite.'));
           } else {
@@ -99,7 +95,6 @@ export function SuperAdminSettings() {
       if (target === 'logo') setIsUploadingLogo(true);
       else if (index !== undefined) setUploadingImageIndex(index);
 
-      // We dynamically compress images into Base64 so they can be saved directly in Firestore settings without requiring Firebase Storage configuration.
       const dataUrl = await compressImageToBase64(file, target === 'logo');
 
       if (target === 'logo') {
@@ -115,31 +110,18 @@ export function SuperAdminSettings() {
     } finally {
       setIsUploadingLogo(false);
       setUploadingImageIndex(null);
-      // Reset input value to allow re-uploading the same file if needed
       event.target.value = '';
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     setSuccessMsg('');
     setErrorMsg('');
 
     try {
-      const docRef = doc(db, 'platform', 'settings');
-      const docSnap = await getDoc(docRef);
-
-      const updatedSettings = {
-        publicSite: config
-      };
-
-      if (docSnap.exists()) {
-        await updateDoc(docRef, updatedSettings);
-      } else {
-        await setDoc(docRef, updatedSettings, { merge: true });
-      }
-
+      updatePlatformSettings({ publicSite: config });
       setSuccessMsg('Paramètres enregistrés avec succès.');
     } catch (error) {
       console.error(error);
@@ -175,7 +157,7 @@ export function SuperAdminSettings() {
       </div>
 
       <form onSubmit={handleSave} className="space-y-8">
-        
+
         {/* GLOBAL OPTIONS */}
         <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
           <div className="flex items-center gap-3 mb-6 border-b border-gray-100 pb-4">
@@ -198,10 +180,10 @@ export function SuperAdminSettings() {
                 <label className={`relative cursor-pointer bg-white py-3 px-4 border border-gray-200 rounded-xl shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors ${isUploadingLogo ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   {isUploadingLogo ? <Loader size={18} className="animate-spin text-indigo-600" /> : <Upload size={18} className="text-indigo-600" />}
                   <span>{isUploadingLogo ? 'Upload...' : 'Téléverser'}</span>
-                  <input 
-                    type="file" 
-                    className="sr-only" 
-                    accept="image/*" 
+                  <input
+                    type="file"
+                    className="sr-only"
+                    accept="image/*"
                     onChange={(e) => handleFileUpload(e, 'logo')}
                     disabled={isUploadingLogo}
                   />
@@ -215,7 +197,7 @@ export function SuperAdminSettings() {
                 </div>
               )}
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Durée du défilement des images (en ms)</label>
               <input
@@ -250,7 +232,7 @@ export function SuperAdminSettings() {
                 required
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Sous-titre / Paragraphe</label>
               <textarea
@@ -295,17 +277,17 @@ export function SuperAdminSettings() {
                   <label className={`relative cursor-pointer bg-white py-3 px-4 border border-gray-200 rounded-xl shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2 transition-colors ${uploadingImageIndex === index ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     {uploadingImageIndex === index ? <Loader size={18} className="animate-spin text-indigo-600" /> : <Upload size={18} className="text-indigo-600" />}
                     <span>{uploadingImageIndex === index ? 'Upload...' : 'Téléverser'}</span>
-                    <input 
-                      type="file" 
-                      className="sr-only" 
-                      accept="image/*" 
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept="image/*"
                       onChange={(e) => handleFileUpload(e, 'heroBg', index)}
                       disabled={uploadingImageIndex !== null}
                     />
                   </label>
                 </div>
                 {img && (
-                   <img src={img} alt="Preview" className="h-12 w-20 object-cover rounded-md border border-gray-200" />
+                  <img src={img} alt="Preview" className="h-12 w-20 object-cover rounded-md border border-gray-200" />
                 )}
                 <button
                   type="button"
@@ -330,7 +312,7 @@ export function SuperAdminSettings() {
             {errorMsg}
           </div>
         )}
-        
+
         {successMsg && (
           <div className="p-4 bg-green-50 text-green-700 border-l-4 border-green-500 rounded-r-lg font-medium">
             {successMsg}

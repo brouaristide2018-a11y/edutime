@@ -35,25 +35,23 @@ import { SuperAdminAds } from './pages/super-admin/SuperAdminAds';
 import { SuperAdminSettings } from './pages/super-admin/SuperAdminSettings';
 import { AdminHome } from './pages/AdminHome';
 import { useStore } from './store';
-import { useFirebaseSync } from './firebaseSync';
 
 import { LandingPage } from './pages/LandingPage';
 import { QuickAttendance } from './pages/QuickAttendance';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const currentUser = useStore(state => state.currentUser);
-  
+
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return <>{children}</>;
 }
 
 import { Support } from './pages/Support';
 
 export default function App() {
-  useFirebaseSync();
 
   return (
     <BrowserRouter>

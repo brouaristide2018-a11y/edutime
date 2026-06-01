@@ -1,54 +1,46 @@
-import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, query, collection, where, onSnapshot } from 'firebase/firestore';
-import { db } from '../../firebase';
+import React, { useState } from 'react';
 import { useStore } from '../../store';
 import { CreditCard, CheckCircle, Clock, AlertCircle, ExternalLink, QrCode, MessageCircle } from 'lucide-react';
 
 export function Subscription() {
   const currentUser = useStore(state => state.currentUser);
-  const [subscription, setSubscription] = useState<any>(null);
-  const [platformSettings, setPlatformSettings] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const platformSettings = useStore(state => state.platformSettings);
+  const schoolSubscription = useStore(state => state.schoolSubscription);
+  const addSubscription = useStore(state => state.addSubscription);
+  const updateSubscription = useStore(state => state.updateSubscription);
+  const subscriptions = useStore(state => state.subscriptions);
+
   const [submitting, setSubmitting] = useState(false);
   const [paymentRef, setPaymentRef] = useState('');
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    if (!currentUser?.schoolId) return;
+  // Get subscription for this school
+  const subscription = currentUser?.schoolId
+    ? subscriptions.find((s: any) => s.id === currentUser.schoolId) || schoolSubscription
+    : null;
 
-    // Fetch platform settings
-    const fetchPlatformSettings = async () => {
-      const snap = await getDoc(doc(db, 'platform', 'settings'));
-      if (snap.exists()) setPlatformSettings(snap.data());
-    };
-    fetchPlatformSettings();
-
-    // Listen to subscription
-    const unsub = onSnapshot(doc(db, 'subscriptions', currentUser.schoolId), (doc) => {
-      if (doc.exists()) {
-        setSubscription(doc.data());
-      }
-      setLoading(false);
-    });
-
-    return () => unsub();
-  }, [currentUser]);
-
-  const handleSubmitPayment = async (e: React.FormEvent) => {
+  const handleSubmitPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentRef || !currentUser?.schoolId) return;
 
     setSubmitting(true);
     try {
-      await setDoc(doc(db, 'subscriptions', currentUser.schoolId), {
+      const subData = {
+        id: currentUser.schoolId,
         schoolId: currentUser.schoolId,
-        schoolName: currentUser.name, // or obtain school name from settings
+        schoolName: currentUser.name,
         status: 'awaiting_approval',
         paymentReference: paymentRef,
         updatedAt: new Date().toISOString()
-      }, { merge: true });
-      
-      // Also update user status to pending subscription if needed
+      };
+
+      const existingSub = subscriptions.find((s: any) => s.id === currentUser.schoolId);
+      if (existingSub) {
+        updateSubscription(currentUser.schoolId, subData);
+      } else {
+        addSubscription(subData);
+      }
+
       setSuccess(true);
       setPaymentRef('');
     } catch (error) {
@@ -58,8 +50,6 @@ export function Subscription() {
     }
   };
 
-  if (loading) return <div className="p-8">Chargement...</div>;
-
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-8">
@@ -68,16 +58,16 @@ export function Subscription() {
           <p className="text-gray-500">Gérez l'accès de votre établissement à EduTime</p>
         </div>
         <div className={`px-4 py-2 rounded-lg flex items-center gap-2 border ${
-          subscription?.status === 'active' 
-            ? 'bg-green-50 border-green-200 text-green-700' 
-            : subscription?.status === 'awaiting_approval'
+          (subscription as any)?.status === 'active'
+            ? 'bg-green-50 border-green-200 text-green-700'
+            : (subscription as any)?.status === 'awaiting_approval'
             ? 'bg-yellow-50 border-yellow-200 text-yellow-700'
             : 'bg-red-50 border-red-200 text-red-700'
         }`}>
-          {subscription?.status === 'active' ? <CheckCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+          {(subscription as any)?.status === 'active' ? <CheckCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
           <span className="font-semibold capitalize">
-            {subscription?.status === 'active' ? 'Activé' : 
-             subscription?.status === 'awaiting_approval' ? 'En attente de validation' : 'Non payé'}
+            {(subscription as any)?.status === 'active' ? 'Activé' :
+             (subscription as any)?.status === 'awaiting_approval' ? 'En attente de validation' : 'Non payé'}
           </span>
         </div>
       </div>
@@ -90,7 +80,7 @@ export function Subscription() {
               <CreditCard className="w-5 h-5 text-indigo-600" />
               Effectuer un paiement
             </h2>
-            
+
             <p className="text-gray-600 mb-6 font-medium">
               Veuillez utiliser l'un des moyens de paiement ci-dessous pour activer votre abonnement annuel.
             </p>
@@ -101,9 +91,9 @@ export function Subscription() {
                   <h3 className="font-medium text-indigo-900 mb-2">Paiement Mobile</h3>
                   <p className="text-sm text-indigo-700 mb-4">Cliquez sur le lien ci-dessous pour payer via Mobile Money ou Carte.</p>
                   {platformSettings?.paymentLink ? (
-                    <a 
-                      href={platformSettings.paymentLink} 
-                      target="_blank" 
+                    <a
+                      href={platformSettings.paymentLink}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors text-sm font-medium"
                     >
@@ -118,9 +108,9 @@ export function Subscription() {
                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <h3 className="font-medium text-gray-900 mb-2">Besoin d'aide ?</h3>
                   <p className="text-sm text-gray-600 mb-3">Contactez notre support technique pour toute question.</p>
-                  <a 
-                    href={`https://wa.me/${platformSettings?.supportContact?.replace(/[^0-9]/g, '')}`} 
-                    target="_blank" 
+                  <a
+                    href={`https://wa.me/${platformSettings?.supportContact?.replace(/[^0-9]/g, '')}`}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium text-sm"
                   >
@@ -136,9 +126,9 @@ export function Subscription() {
                   Scanner pour payer
                 </div>
                 {platformSettings?.paymentQrCode ? (
-                  <img 
-                    src={platformSettings.paymentQrCode} 
-                    alt="Payment QR Code" 
+                  <img
+                    src={platformSettings.paymentQrCode}
+                    alt="Payment QR Code"
                     className="w-48 h-48 object-contain"
                     referrerPolicy="no-referrer"
                   />
@@ -157,12 +147,12 @@ export function Subscription() {
               <CheckCircle className="w-5 h-5 text-indigo-600" />
               Confirmation de paiement
             </h2>
-            
+
             <form onSubmit={handleSubmitPayment} className="space-y-4">
               <p className="text-sm text-gray-600">
                 Une fois le paiement effectué, veuillez saisir la référence de la transaction ci-dessous pour validation par le Super Administrateur.
               </p>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Référence du paiement</label>
                 <input
@@ -225,7 +215,7 @@ export function Subscription() {
               Note Importante
             </h3>
             <p className="text-sm text-gray-600 leading-relaxed">
-              Après la validation de votre paiement par le Super Administrateur, votre établissement pourra jouir de toutes les fonctionnalités de la plateforme EduTime. 
+              Après la validation de votre paiement par le Super Administrateur, votre établissement pourra jouir de toutes les fonctionnalités de la plateforme EduTime.
               Le processus de validation prend généralement moins de 2 heures.
             </p>
           </div>

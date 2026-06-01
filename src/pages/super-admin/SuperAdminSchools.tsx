@@ -1,72 +1,39 @@
-import React, { useEffect, useState } from 'react';
-import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { Building2, Ban, Trash2, ShieldAlert, CheckCircle, Settings as SettingsIcon } from 'lucide-react';
+import React, { useState } from 'react';
+import { useStore } from '../../store';
+import { Building2, Ban, Trash2, CheckCircle, Settings as SettingsIcon } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { SchoolEditModal } from './SchoolEditModal';
 
 export function SuperAdminSchools() {
-  const [schools, setSchools] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  
+  const registrations = useStore(state => state.registrations);
+  const updateRegistration = useStore(state => state.updateRegistration);
+  const deleteRegistration = useStore(state => state.deleteRegistration);
+  const updateUser = useStore(state => state.updateUser);
+  const deleteUser = useStore(state => state.deleteUser);
+
   const [schoolToSuspend, setSchoolToSuspend] = useState<any | null>(null);
   const [schoolToDelete, setSchoolToDelete] = useState<any | null>(null);
   const [schoolToEdit, setSchoolToEdit] = useState<any | null>(null);
 
-  const fetchSchools = async () => {
-    try {
-      setLoading(true);
-      const regSnap = await getDocs(collection(db, 'registrations'));
-      const regData = regSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      
-      // On ne prend que les établissements validés ou déjà suspendus
-      const activeSchools = regData.filter((r: any) => r.status === 'Validé' || r.status === 'Suspendu');
-      setSchools(activeSchools);
-    } catch (error) {
-      console.error("Error fetching schools:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Only show validated or suspended schools
+  const schools = registrations.filter((r: any) => r.status === 'Validé' || r.status === 'Suspendu');
 
-  useEffect(() => {
-    fetchSchools();
-  }, []);
-
-  const handleToggleSuspend = async () => {
+  const handleToggleSuspend = () => {
     if (!schoolToSuspend) return;
-    try {
-      const newStatus = schoolToSuspend.status === 'Suspendu' ? 'Validé' : 'Suspendu';
-      const newUserStatus = schoolToSuspend.status === 'Suspendu' ? 'Actif' : 'Suspendu';
-      
-      await updateDoc(doc(db, 'registrations', schoolToSuspend.id), { status: newStatus });
-      await updateDoc(doc(db, 'users', schoolToSuspend.emailEtablissement), { status: newUserStatus });
-      
-      fetchSchools();
-      setSchoolToSuspend(null);
-    } catch (error) {
-      console.error("Error toggling suspension:", error);
-      alert("Erreur lors du changement de statut");
-    }
+    const newStatus = schoolToSuspend.status === 'Suspendu' ? 'Validé' : 'Suspendu';
+    const newUserStatus = schoolToSuspend.status === 'Suspendu' ? 'Actif' : 'Suspendu';
+
+    updateRegistration(schoolToSuspend.id, { status: newStatus });
+    updateUser(schoolToSuspend.emailEtablissement, { status: newUserStatus });
+    setSchoolToSuspend(null);
   };
 
   const handleDelete = async () => {
     if (!schoolToDelete) return;
-    try {
-      // Pour une suppression complète, il faudrait supprimer plein de sous-collections. 
-      // Ici on supprime son user et son dossier d'inscription.
-      await deleteDoc(doc(db, 'users', schoolToDelete.emailEtablissement));
-      await deleteDoc(doc(db, 'registrations', schoolToDelete.id));
-      
-      fetchSchools();
-      setSchoolToDelete(null);
-    } catch (error) {
-      console.error("Error deleting school:", error);
-      alert("Erreur lors de la suppression");
-    }
+    await deleteUser(schoolToDelete.emailEtablissement);
+    deleteRegistration(schoolToDelete.id);
+    setSchoolToDelete(null);
   };
-
-  if (loading) return <div className="p-8">Chargement...</div>;
 
   return (
     <div className="p-8">
@@ -74,7 +41,7 @@ export function SuperAdminSchools() {
         <h1 className="text-2xl font-bold text-gray-900">Gestion des Établissements</h1>
         <p className="text-gray-500 mt-1">Gérez les établissements actifs sur la plateforme (suspension, suppression)</p>
       </div>
-      
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -105,8 +72,8 @@ export function SuperAdminSchools() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    school.status === 'Suspendu' 
-                      ? 'bg-red-100 text-red-800' 
+                    school.status === 'Suspendu'
+                      ? 'bg-red-100 text-red-800'
                       : 'bg-green-100 text-green-800'
                   }`}>
                     {school.status}
@@ -114,7 +81,7 @@ export function SuperAdminSchools() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div className="flex justify-end gap-2">
-                    <button 
+                    <button
                       onClick={() => setSchoolToEdit(school)}
                       className="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                       title="Modifier les modules et abonnements"
@@ -123,10 +90,10 @@ export function SuperAdminSchools() {
                       Modifier
                     </button>
 
-                    <button 
+                    <button
                       onClick={() => setSchoolToSuspend(school)}
                       className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 ${
-                        school.status === 'Suspendu' 
+                        school.status === 'Suspendu'
                           ? 'bg-green-100 text-green-700 hover:bg-green-200'
                           : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
                       }`}
@@ -135,8 +102,8 @@ export function SuperAdminSchools() {
                       {school.status === 'Suspendu' ? <CheckCircle className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
                       {school.status === 'Suspendu' ? 'Réactiver' : 'Suspendre'}
                     </button>
-                    
-                    <button 
+
+                    <button
                       onClick={() => setSchoolToDelete(school)}
                       className="bg-red-100 text-red-700 hover:bg-red-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
                       title="Supprimer définitivement"
@@ -164,7 +131,7 @@ export function SuperAdminSchools() {
         onClose={() => setSchoolToSuspend(null)}
         onConfirm={handleToggleSuspend}
         title={schoolToSuspend?.status === 'Suspendu' ? "Réactiver l'établissement" : "Suspendre l'établissement"}
-        message={schoolToSuspend?.status === 'Suspendu' 
+        message={schoolToSuspend?.status === 'Suspendu'
           ? `Voulez-vous vraiment réactiver l'établissement "${schoolToSuspend.nomEtablissement}" ? Ils pourront à nouveau se connecter et accéder à EduTime.`
           : `Voulez-vous vraiment suspendre l'établissement "${schoolToSuspend?.nomEtablissement}" ? L'accès à la plateforme leur sera bloqué jusqu'à réactivation.`
         }
@@ -188,7 +155,6 @@ export function SuperAdminSchools() {
           onClose={() => setSchoolToEdit(null)}
           onSave={() => {
             setSchoolToEdit(null);
-            fetchSchools();
           }}
         />
       )}

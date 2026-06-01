@@ -1,26 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, deleteDoc, addDoc, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { Megaphone, Plus, Edit2, Trash2, Globe, EyeOff, X, Save } from 'lucide-react';
+import React, { useState } from 'react';
+import { useStore } from '../../store';
+import { Megaphone, Plus, Edit2, Trash2, Globe, X, Save } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
-
-export interface Announcement {
-  id: string;
-  title: string;
-  content: string;
-  type: 'announcement' | 'ad';
-  createdAt: number;
-  isPublic: boolean;
-  status: 'active' | 'inactive';
-}
+import type { Announcement } from '../../store';
 
 export function SuperAdminAds() {
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const announcements = useStore(state => state.announcements);
+  const addAnnouncement = useStore(state => state.addAnnouncement);
+  const updateAnnouncement = useStore(state => state.updateAnnouncement);
+  const deleteAnnouncement = useStore(state => state.deleteAnnouncement);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Announcement | null>(null);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
-  
+
   const [formData, setFormData] = useState<Omit<Announcement, 'id' | 'createdAt'>>({
     title: '',
     content: '',
@@ -29,21 +22,7 @@ export function SuperAdminAds() {
     status: 'active'
   });
 
-  const fetchAnnouncements = async () => {
-    try {
-      const snapshot = await getDocs(query(collection(db, 'announcements'), orderBy('createdAt', 'desc')));
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement));
-      setAnnouncements(data);
-    } catch (error) {
-      console.error("Error fetching announcements:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchAnnouncements();
-  }, []);
+  const sortedAnnouncements = [...announcements].sort((a, b) => b.createdAt - a.createdAt);
 
   const handleOpenModal = (item?: Announcement) => {
     if (item) {
@@ -73,42 +52,27 @@ export function SuperAdminAds() {
     setEditingItem(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      if (editingItem) {
-        await setDoc(doc(db, 'announcements', editingItem.id), {
-          ...formData,
-          createdAt: editingItem.createdAt
-        });
-      } else {
-        await addDoc(collection(db, 'announcements'), {
-          ...formData,
-          createdAt: Date.now()
-        });
-      }
-      handleCloseModal();
-      fetchAnnouncements();
-    } catch (error) {
-      console.error("Error saving announcement:", error);
-      alert("Erreur lors de l'enregistrement");
+    if (editingItem) {
+      updateAnnouncement(editingItem.id, {
+        ...formData,
+        createdAt: editingItem.createdAt
+      });
+    } else {
+      addAnnouncement({
+        ...formData,
+        createdAt: Date.now()
+      });
     }
+    handleCloseModal();
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!itemToDelete) return;
-    try {
-      await deleteDoc(doc(db, 'announcements', itemToDelete));
-      fetchAnnouncements();
-    } catch (error) {
-      console.error("Error deleting announcement:", error);
-      alert("Erreur lors de la suppression");
-    } finally {
-      setItemToDelete(null);
-    }
+    deleteAnnouncement(itemToDelete);
+    setItemToDelete(null);
   };
-
-  if (loading) return <div className="p-8">Chargement...</div>;
 
   return (
     <div className="p-8">
@@ -127,7 +91,7 @@ export function SuperAdminAds() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {announcements.map((item) => (
+        {sortedAnnouncements.map((item) => (
           <div key={item.id} className={`bg-white rounded-xl shadow-sm border ${item.status === 'active' ? 'border-indigo-200' : 'border-gray-200'} overflow-hidden flex flex-col`}>
             <div className={`p-6 border-b ${item.type === 'ad' ? 'bg-amber-50 border-amber-100' : 'bg-indigo-50 border-indigo-100'}`}>
               <div className="flex justify-between items-start mb-2">
@@ -145,11 +109,11 @@ export function SuperAdminAds() {
                 </div>
               )}
             </div>
-            
+
             <div className="p-6 flex-1">
               <p className="text-gray-600 text-sm whitespace-pre-wrap">{item.content}</p>
             </div>
-            
+
             <div className="p-6 border-t border-gray-100 bg-gray-50 flex gap-3">
               <button
                 onClick={() => handleOpenModal(item)}
@@ -168,8 +132,8 @@ export function SuperAdminAds() {
             </div>
           </div>
         ))}
-        
-        {announcements.length === 0 && (
+
+        {sortedAnnouncements.length === 0 && (
           <div className="col-span-full bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
             <p className="text-gray-500 mb-4">Aucune annonce ou publicité n'a été créée.</p>
             <button
@@ -195,7 +159,7 @@ export function SuperAdminAds() {
                 <X size={24} />
               </button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto flex-1">
               <form id="announcement-form" onSubmit={handleSubmit} className="space-y-6">
                 <div>
@@ -209,7 +173,7 @@ export function SuperAdminAds() {
                     placeholder="Titre de l'annonce ou publicité"
                   />
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Statut</label>
@@ -261,7 +225,7 @@ export function SuperAdminAds() {
                     placeholder="Écrivez votre message ici..."
                   ></textarea>
                 </div>
-                
+
                 <div className="pt-6 border-t border-gray-200 mt-6 flex justify-end gap-3">
                   <button
                     type="button"

@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
-import { Building2, LogIn, Lock, Mail, Eye, EyeOff, UserPlus, User, CheckCircle, ArrowLeft } from 'lucide-react';
-import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth, db } from '../firebase';
-import { doc, getDoc, setDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { Building2, LogIn, Lock, Mail, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react';
 import { RegisterForm } from './RegisterForm';
 
 export function Login() {
@@ -17,9 +14,9 @@ export function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentBg, setCurrentBg] = useState(0);
   const setCurrentUser = useStore(state => state.setCurrentUser);
-  const settings = useStore(state => state.settings);
   const platformSettings = useStore(state => state.platformSettings);
-  const updateSettings = useStore(state => state.updateSettings);
+  const addRegistration = useStore(state => state.addRegistration);
+  const addUser = useStore(state => state.addUser);
   const navigate = useNavigate();
 
   const defaultImages = [
@@ -46,23 +43,18 @@ export function Login() {
       setError('');
       setRegistrationSuccess(false);
 
-      // Create user in Firebase Auth using the school's email
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.emailEtablissement, formData.password);
-      const user = userCredential.user;
-
-      // Generate a unique school ID
       const schoolId = `school_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Create admin user document in Firestore with 'En attente' status
       const newAdmin = {
         name: formData.nomEtablissement,
-        email: formData.emailEtablissement, // Compte associé à l'email de l'établissement
-        role: 'Admin',
-        status: 'En attente',
+        email: formData.emailEtablissement,
+        password: formData.password,
+        role: 'Admin' as const,
+        status: 'En attente' as const,
         schoolId: schoolId,
         schoolCode: formData.codeEtablissement,
         schoolEmail: formData.emailEtablissement,
-        subscriptionStatus: 'inactive',
+        subscriptionStatus: 'inactive' as const,
         lastLogin: new Date().toISOString(),
         permissions: {
           planning: { view: true, add: true, edit: true, delete: true },
@@ -71,130 +63,23 @@ export function Login() {
           settings: { view: true, add: true, edit: true, delete: true },
         }
       };
-      
-      await setDoc(doc(db, 'users', formData.emailEtablissement), newAdmin);
-      
-      // Store registration data for Super Admin validation
-      await setDoc(doc(db, 'registrations', formData.emailEtablissement), {
+
+      addUser({ ...newAdmin, id: formData.emailEtablissement });
+
+      addRegistration({
         ...formData,
         schoolId: schoolId,
         status: 'En attente',
         createdAt: new Date().toISOString()
       });
 
-      // Initialize default settings for the school with registration info
-      const defaultSettings = {
-        schoolName: formData.nomEtablissement,
-        address: formData.adresse,
-        phone: formData.etablissementContact1,
-        email: formData.emailEtablissement,
-        currency: 'FCFA',
-        timezone: 'Africa/Abidjan',
-        dateFormat: 'DD/MM/YYYY',
-        language: 'fr',
-        toleranceTime: 10,
-        autoLateAfter: 15,
-        mandatoryAttendance: true,
-        allowedMethods: {
-          manual: true,
-          qrCode: false,
-          geolocation: false,
-        },
-        validation: {
-          auto: true,
-          admin: false,
-        },
-        defaultHourlyRate: 5000,
-        overtimeEnabled: true,
-        overtimeCoefficient: 1.25,
-        deductions: {
-          absence: true,
-          lateness: true,
-          advance: true,
-        },
-        rounding: '15',
-        notifications: {
-          email: true,
-          sms: false,
-          whatsapp: false,
-          triggers: {
-            professorAbsence: true,
-            scheduleChange: true,
-            paymentMade: true,
-          },
-        },
-        security: {
-          minPasswordLength: 8,
-          twoFactorAuth: false,
-          sessionExpiration: 120,
-        },
-        integrations: {
-          googleCalendar: false,
-          excelExport: true,
-          mobileMoney: false,
-        },
-        modules: {
-          professors: true,
-          classes: true,
-          schedule: true,
-          attendance: true,
-          requests: true,
-          payroll: true,
-          support: true,
-        },
-        subscription: {
-          plan: 'Essai',
-          trialStartDate: new Date().toISOString(),
-          // Trial is 30 days
-          trialEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          status: 'Essai',
-          maxClasses: 10,
-          maxProfessors: 10,
-        }
-      };
-      await setDoc(doc(db, 'settings', schoolId), defaultSettings);
-
-      // Sign out the newly created auth user so they don't stay logged in while pending
-      await auth.signOut();
-      
       setRegistrationSuccess(true);
       setIsRegistering(false);
     } catch (err: any) {
       console.error('Registration error:', err);
-      // Firebase specific errors
-      if (err.code === 'auth/email-already-in-use') {
-        setError('Cette adresse email est déjà utilisée.');
-      } else if (err.code === 'auth/weak-password' || (err.message && err.message.includes('weak-password'))) {
-        setError('Le mot de passe doit contenir au moins 6 caractères.');
-      } else {
-        setError('Erreur lors de l\'inscription. Veuillez réessayer.');
-      }
+      setError('Erreur lors de l\'inscription. Veuillez réessayer.');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const ensureSuperAdminEmailAvailable = async () => {
-    try {
-      const userDocRef = doc(db, 'users', 'cydrovis@gmail.com');
-      const userDocSnap = await getDoc(userDocRef);
-      
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        if (userData.role !== 'SuperAdmin') {
-          // Migrate to brouaristide034@gmail.com
-          const newDocRef = doc(db, 'users', 'brouaristide034@gmail.com');
-          await setDoc(newDocRef, {
-            ...userData,
-            email: 'brouaristide034@gmail.com',
-            id: 'brouaristide034@gmail.com'
-          });
-          await deleteDoc(userDocRef);
-          console.log("Migrated cydrovis@gmail.com to brouaristide034@gmail.com");
-        }
-      }
-    } catch (err) {
-      console.error("Error migrating user:", err);
     }
   };
 
@@ -209,198 +94,66 @@ export function Login() {
 
       // Super Admin Shortcut
       if ((loginEmailValue === '26' || loginEmailValue === 'cydrovis@gmail.com') && password === 'admin123') {
-        try {
-          await signInWithEmailAndPassword(auth, 'superadmin@edutime.fr', 'admin123');
-        } catch (err: any) {
-          if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-login-credentials') {
-            try {
-              await createUserWithEmailAndPassword(auth, 'superadmin@edutime.fr', 'admin123');
-            } catch (createErr: any) {
-              if (createErr.code !== 'auth/email-already-in-use') throw createErr;
-              // If already exists but sign in failed, it's a real password error
-              await signInWithEmailAndPassword(auth, 'superadmin@edutime.fr', 'admin123');
-            }
-          } else {
-            throw err;
-          }
-        }
-        await ensureSuperAdminEmailAvailable();
-        setCurrentUser({ 
-          id: 'super-admin', 
-          name: 'Super Administrateur', 
-          role: 'SuperAdmin', 
+        setCurrentUser({
+          id: 'super-admin',
+          name: 'Super Administrateur',
+          role: 'SuperAdmin',
           email: 'cydrovis@gmail.com',
-          status: 'Actif'
+          status: 'Actif',
+          permissions: {
+            planning: { view: true, add: true, edit: true, delete: true },
+            payroll: { view: true, add: true, edit: true, delete: true },
+            users: { view: true, add: true, edit: true, delete: true },
+            settings: { view: true, add: true, edit: true, delete: true },
+          }
         } as any);
         navigate('/super-admin');
         return;
       }
-      
-      // Determine actual email for Firebase Auth and find user Document
-      let firebaseEmail = loginEmailValue;
-      let userData: any = null;
-      let userDocId: string = loginEmailValue;
 
-      const usersRef = collection(db, 'users');
-      // Sequential search across possible identifiers
-      let q = query(usersRef, where('email', '==', loginEmailValue));
-      let querySnapshot = await getDocs(q);
+      // Search user in local store
+      const users = useStore.getState().users;
+      const userData = users.find(u =>
+        (u.email === loginEmailValue ||
+         u.loginId === loginEmailValue ||
+         u.schoolCode === loginEmailValue ||
+         u.schoolEmail === loginEmailValue)
+      );
 
-      if (querySnapshot.empty) {
-        q = query(usersRef, where('schoolEmail', '==', loginEmailValue));
-        querySnapshot = await getDocs(q);
-      }
-
-      if (querySnapshot.empty) {
-        q = query(usersRef, where('schoolCode', '==', loginEmailValue));
-        querySnapshot = await getDocs(q);
-      }
-
-      if (querySnapshot.empty) {
-        q = query(usersRef, where('loginId', '==', loginEmailValue));
-        querySnapshot = await getDocs(q);
-      }
-
-      if (!querySnapshot.empty) {
-        const foundDoc = querySnapshot.docs[0];
-        userData = foundDoc.data();
-        firebaseEmail = userData.email || firebaseEmail;
-        userDocId = foundDoc.id;
-      } else if (!loginEmailValue.includes('@')) {
-         firebaseEmail = `${loginEmailValue}@edutime.local`;
-      }
-
-      // Firebase Authentication
-      try {
-        await signInWithEmailAndPassword(auth, firebaseEmail, password);
-      } catch (authError: any) {
-        // Handle Lazy Auth Account Creation if user exists in Firestore and password matches (mostly for newly added professors)
-        if ((authError.code === 'auth/user-not-found' || authError.code === 'auth/invalid-credential' || authError.code === 'auth/invalid-login-credentials') && userData && userData.password === password) {
-          try {
-            await createUserWithEmailAndPassword(auth, firebaseEmail, password);
-          } catch (createErr: any) {
-             if (createErr.code === 'auth/email-already-in-use') {
-               throw authError; // They gave the wrong password for an existing account
-             }
-             throw createErr;
-          }
-        } else {
-          throw authError;
-        }
-      }
-      
-      // Fallback: If userData wasn't retrieved through the custom query (e.g. login is direct email, query found it or direct getDoc)
       if (!userData) {
-        const userDoc = await getDoc(doc(db, 'users', firebaseEmail));
-        if (userDoc.exists()) {
-          userData = userDoc.data();
-          userDocId = userDoc.id;
-        }
-      }
-
-      if (userData) {
-        // Enforce Subscription / School Suspension checks if applicable
-        if (userData.schoolId) {
-          const settingsDoc = await getDoc(doc(db, 'settings', userData.schoolId));
-          if (settingsDoc.exists()) {
-             const schoolSettings = settingsDoc.data();
-             const subStatus = schoolSettings.subscription?.status;
-             if (subStatus === 'Suspendu') {
-                setError("Oups! Le compte de l'établissement a été suspendu suite à un non paiement ou à la fin de la période d'essai.");
-                await auth.signOut();
-                setIsLoading(false);
-                return;
-             }
-          }
-        }
-
-        if (userData.status === 'Actif') {
-          setCurrentUser({ id: userDocId, ...userData });
-          navigate(userData.role === 'Professeur' ? '/prof' : '/admin');
-        } else if (userData.status === 'En attente') {
-          setError('Compte en attente de validation.');
-          await auth.signOut();
-        } else if (userData.status === 'Suspendu') {
-          setError('Votre compte a été suspendu par l\'administration.');
-          await auth.signOut();
-        } else {
-          setError('Compte inactif.');
-          await auth.signOut();
-        }
-      } else {
-        setError('Compte introuvable dans la base de données.');
-        await auth.signOut();
-      }
-      
-    } catch (err: any) {
-      console.error('Login error:', err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('Identifiants invalides.');
-      } else {
-        setError('Erreur lors de la connexion.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      if (user.email === 'cydrovis@gmail.com') {
-        await ensureSuperAdminEmailAvailable();
-        setCurrentUser({ 
-          id: 'super-admin', 
-          name: 'Super Administrateur', 
-          role: 'SuperAdmin', 
-          email: 'cydrovis@gmail.com',
-          status: 'Actif'
-        } as any);
-        navigate('/super-admin');
         return;
       }
 
-      // Check if user exists in Firestore by email
-      const userDoc = await getDoc(doc(db, 'users', user.email!));
-      
-      if (userDoc.exists()) {
-        const userData = userDoc.data() as any;
-        
-        if (userData.status === 'Inactif') {
-          setError('Votre compte est inactif. Veuillez contacter l\'administrateur.');
-          await auth.signOut();
-          return;
-        }
-
-        if (userData.status === 'Suspendu') {
-          setError('Votre compte a été suspendu par l\'administration.');
-          await auth.signOut();
-          return;
-        }
-        
-        if (userData.status === 'En attente') {
-          setError('Votre compte est en attente de validation par un Super Administrateur.');
-          await auth.signOut();
-          return;
-        }
-        setCurrentUser({ id: user.email!, ...userData });
-        if (userData.role === 'Professeur') {
-          navigate('/prof');
-        } else {
-          navigate('/');
-        }
-      } else {
-        setError('Aucun compte associé à cette adresse email.');
-        await auth.signOut();
+      // Verify password
+      if (userData.password && userData.password !== password) {
+        setError('Identifiants invalides.');
+        return;
       }
+
+      // Check subscription status in settings (local check)
+      if (userData.schoolId) {
+        const settings = useStore.getState().settings;
+        if (settings.subscription?.status === 'Suspendu') {
+          setError("Oups! Le compte de l'établissement a été suspendu suite à un non paiement ou à la fin de la période d'essai.");
+          return;
+        }
+      }
+
+      if (userData.status === 'Actif') {
+        setCurrentUser(userData);
+        navigate(userData.role === 'Professeur' ? '/prof' : '/admin');
+      } else if (userData.status === 'En attente') {
+        setError('Compte en attente de validation.');
+      } else if (userData.status === 'Suspendu') {
+        setError('Votre compte a été suspendu par l\'administration.');
+      } else {
+        setError('Compte inactif.');
+      }
+
     } catch (err: any) {
       console.error('Login error:', err);
-      setError('Erreur lors de la connexion. Veuillez réessayer.');
+      setError('Erreur lors de la connexion.');
     } finally {
       setIsLoading(false);
     }
@@ -411,13 +164,12 @@ export function Login() {
       {/* Background Slider */}
       <div className="absolute inset-0 z-0">
         {bgImages.map((img, index) => (
-          <div 
-            key={img} 
-            className={`absolute inset-0 transition-opacity duration-1000 ${currentBg === index ? 'opacity-100' : 'opacity-0'}`} 
-            style={{ backgroundImage: `url(${img})`, backgroundSize: 'cover', backgroundPosition: 'center' }} 
+          <div
+            key={img}
+            className={`absolute inset-0 transition-opacity duration-1000 ${currentBg === index ? 'opacity-100' : 'opacity-0'}`}
+            style={{ backgroundImage: `url(${img})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
           />
         ))}
-        {/* Overlay to ensure text readability while keeping image visible */}
         <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px]"></div>
       </div>
 
@@ -433,7 +185,7 @@ export function Login() {
         <div className="flex justify-center">
           {publicSite?.logoUrl ? (
             <div className="transform hover:scale-105 transition-transform bg-white/50 backdrop-blur-sm p-3 sm:p-4 rounded-3xl shadow-lg border border-white/50">
-                <img src={publicSite.logoUrl} alt="EduTime Logo" className="h-12 sm:h-16 object-contain drop-shadow-md" referrerPolicy="no-referrer" />
+              <img src={publicSite.logoUrl} alt="EduTime Logo" className="h-12 sm:h-16 object-contain drop-shadow-md" referrerPolicy="no-referrer" />
             </div>
           ) : (
             <div className="w-14 h-14 sm:w-16 sm:h-16 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
@@ -481,8 +233,8 @@ export function Login() {
             )}
 
             {isRegistering ? (
-              <RegisterForm 
-                onSubmit={handleRegister} 
+              <RegisterForm
+                onSubmit={handleRegister}
                 onCancel={() => {
                   setIsRegistering(false);
                   setError('');
@@ -568,30 +320,17 @@ export function Login() {
 
               <div className="mt-6 space-y-4">
                 <button
-                  onClick={handleGoogleLogin}
-                  disabled={isLoading}
+                  disabled
                   type="button"
-                  className="w-full flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                  className="w-full flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-400 bg-gray-50 cursor-not-allowed"
                 >
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                    <path
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      fill="#4285F4"
-                    />
-                    <path
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      fill="#34A853"
-                    />
-                    <path
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      fill="#FBBC05"
-                    />
-                    <path
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      fill="#EA4335"
-                    />
+                  <svg className="w-5 h-5 mr-2 opacity-40" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                   </svg>
-                  {isLoading ? 'Connexion en cours...' : 'Se connecter avec Google'}
+                  Connexion Google (disponible prochainement)
                 </button>
 
                 <button

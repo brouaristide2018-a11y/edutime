@@ -5,8 +5,6 @@ import { fr } from 'date-fns/locale';
 import { Plus, X, Trash2, Edit2, AlertTriangle, Filter } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
 
 interface WeeklyScheduleProps {
   type: 'prof' | 'class';
@@ -84,45 +82,16 @@ export function WeeklySchedule({ type, id, readOnly = false }: WeeklySchedulePro
 
   const checkConflicts = async (courseData: Partial<Course>, excludeCourseId?: string) => {
     const { date, startTime, endTime, professorId, classId, roomId, subjectId } = courseData;
-    
+
     if (!date || !startTime || !endTime || !professorId || !classId || !subjectId) return null;
 
     const parsedDate = parseISO(date);
-    const jsDay = getDay(parsedDate);
-    const dayOfWeek = jsDay === 0 ? 7 : jsDay; // 1 = Monday, 7 = Sunday
 
-    // 1. Check Professor Conflicts
-    const prof = professors.find(p => p.id === professorId);
-    if (prof) {
-      // 1.1 Global Conflict Check (Other Schools)
-      if (prof.email) {
-        try {
-          const q = query(
-            collection(db, 'courses'), 
-            where('date', '==', date),
-            where('professorEmail', '==', prof.email)
-          );
-          const querySnapshot = await getDocs(q);
-          const otherCourses = querySnapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() } as Course))
-            .filter(c => c.schoolId !== currentUser?.schoolId && c.id !== excludeCourseId);
-
-          for (const c of otherCourses) {
-            if (startTime < c.endTime && endTime > c.startTime) {
-              return `Le professeur est déjà pris dans un autre établissement (${c.schoolName || 'Inconnu'}) de ${c.startTime} à ${c.endTime}. Veuillez choisir un autre créneau.`;
-            }
-          }
-        } catch (err) {
-          console.warn("Erreur lors de la vérification globale des conflits:", err);
-        }
-      }
-    }
-
-    // 2. Check Overlaps (Local School)
+    // Check Overlaps (Local School only — multi-school conflict check not available in local mode)
     const overlappingCourses = courses.filter(c => {
       if (excludeCourseId && c.id === excludeCourseId) return false;
       if (c.date !== date) return false;
-      
+
       // Check time overlap
       return (startTime < c.endTime && endTime > c.startTime);
     });

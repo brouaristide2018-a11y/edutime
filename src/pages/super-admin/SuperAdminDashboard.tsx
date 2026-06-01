@@ -1,136 +1,93 @@
-import React, { useEffect, useState } from 'react';
-import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { Building2, CheckCircle, XCircle, Clock, Filter, AlertTriangle } from 'lucide-react';
+import React, { useState } from 'react';
+import { useStore } from '../../store';
+import { Building2, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
 
 type FilterTab = 'Tous' | 'En attente' | 'Validé' | 'Rejeté' | 'Paiements' | 'Paramètres';
 
 export function SuperAdminDashboard() {
-  const [registrations, setRegistrations] = useState<any[]>([]);
-  const [subscriptions, setSubscriptions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const registrations = useStore(state => state.registrations);
+  const subscriptions = useStore(state => state.subscriptions);
+  const updateRegistration = useStore(state => state.updateRegistration);
+  const updateUser = useStore(state => state.updateUser);
+  const updateSubscription = useStore(state => state.updateSubscription);
+
   const [isResetting, setIsResetting] = useState(false);
   const [activeTab, setActiveTab] = useState<FilterTab>('Tous');
-  
+
   const [regToValidate, setRegToValidate] = useState<any | null>(null);
   const [regToReject, setRegToReject] = useState<any | null>(null);
   const [subToApprove, setSubToApprove] = useState<any | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [regSnap, subSnap] = await Promise.all([
-        getDocs(collection(db, 'registrations')),
-        getDocs(collection(db, 'subscriptions'))
-      ]);
-      
-      const regData = regSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRegistrations(regData.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-      
-      const subData = subSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setSubscriptions(subData);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const sortedRegistrations = [...registrations].sort((a: any, b: any) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const handleValidate = async () => {
+  const handleValidate = () => {
     if (!regToValidate) return;
-    try {
-      await updateDoc(doc(db, 'registrations', regToValidate.id), { status: 'Validé' });
-      await updateDoc(doc(db, 'users', regToValidate.emailEtablissement), { status: 'Actif' });
-      fetchData();
-      setRegToValidate(null);
-    } catch (error) {
-      console.error("Error validating:", error);
-      alert("Erreur lors de la validation");
-    }
+    updateRegistration(regToValidate.id, { status: 'Validé' });
+    updateUser(regToValidate.emailEtablissement, { status: 'Actif' });
+    setRegToValidate(null);
   };
 
-  const handleApproveSubscription = async () => {
+  const handleApproveSubscription = () => {
     if (!subToApprove) return;
-    try {
-      await updateDoc(doc(db, 'subscriptions', subToApprove.id), { 
-        status: 'active',
-        startDate: new Date().toISOString(),
-        endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
-      });
-      // Also update registration if it exists as a way to link
-      // or update user directly
-      const reg = registrations.find(r => r.schoolId === subToApprove.id);
-      if (reg) {
-        await updateDoc(doc(db, 'users', reg.emailEtablissement), { subscriptionStatus: 'active' });
-      }
-      
-      fetchData();
-      setSubToApprove(null);
-    } catch (error) {
-      console.error("Error approving subscription:", error);
-      alert("Erreur lors de l'approbation");
+    updateSubscription(subToApprove.id, {
+      status: 'active',
+      startDate: new Date().toISOString(),
+      endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString()
+    });
+    const reg = registrations.find(r => r.schoolId === subToApprove.id);
+    if (reg) {
+      updateUser(reg.emailEtablissement, { subscriptionStatus: 'active' });
     }
+    setSubToApprove(null);
   };
 
-  const handleReject = async () => {
+  const handleReject = () => {
     if (!regToReject) return;
-    try {
-      await updateDoc(doc(db, 'registrations', regToReject.id), { status: 'Rejeté' });
-      await updateDoc(doc(db, 'users', regToReject.emailEtablissement), { status: 'Rejeté' });
-      fetchData();
-      setRegToReject(null);
-    } catch (error) {
-      console.error("Error rejecting:", error);
-      alert("Erreur lors du rejet");
-    }
+    updateRegistration(regToReject.id, { status: 'Rejeté' });
+    updateUser(regToReject.emailEtablissement, { status: 'Rejeté' });
+    setRegToReject(null);
   };
 
-  const handleResetDatabase = async () => {
-    const collectionsToReset = [
-      'registrations', 'subscriptions', 'professors', 'classes', 
-      'subjects', 'courses', 'attendances', 'payments', 'rooms', 
-      'timeSlots', 'professor_requests', 'support_tickets', 'users', 'auth_mappings'
-    ];
-    
-    try {
-      setIsResetting(true);
-      for (const colName of collectionsToReset) {
-        const querySnapshot = await getDocs(collection(db, colName));
-        const deletePromises = querySnapshot.docs.map(document => deleteDoc(doc(db, colName, document.id)));
-        await Promise.all(deletePromises);
-      }
-      alert("Base de données réinitialisée avec succès ! Les comptes restent dans Firebase Auth mais leurs profils ont été effacés.");
-      window.location.reload();
-    } catch (error) {
-      console.error("Erreur lors de la réinitialisation:", error);
-      alert("Une erreur est survenue lors de la réinitialisation de la base de données.");
-    } finally {
-      setIsResetting(false);
-      setShowResetConfirm(false);
-    }
+  const handleResetDatabase = () => {
+    setIsResetting(true);
+    useStore.setState({
+      registrations: [],
+      subscriptions: [],
+      professors: [],
+      classes: [],
+      subjects: [],
+      courses: [],
+      attendances: [],
+      payments: [],
+      rooms: [],
+      timeSlots: [],
+      professorRequests: [],
+      supportTickets: [],
+      users: [],
+      announcements: [],
+      subscriptionPlans: [],
+    });
+    setIsResetting(false);
+    setShowResetConfirm(false);
+    alert("Données réinitialisées avec succès !");
   };
 
-  const filteredRegistrations = registrations.filter(reg => {
+  const filteredRegistrations = sortedRegistrations.filter(reg => {
     if (activeTab === 'Tous' || activeTab === 'Paiements' || activeTab === 'Paramètres') return true;
     return reg.status === activeTab;
   });
 
-  const pendingSubs = subscriptions.filter(sub => sub.status === 'awaiting_approval');
-
-  if (loading) return <div className="p-8">Chargement...</div>;
+  const pendingSubs = subscriptions.filter((sub: any) => sub.status === 'awaiting_approval');
 
   return (
     <div className="p-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Gestion de la Plateforme</h1>
-        
-        {/* Tabs for filtering */}
+
         <div className="flex items-center bg-gray-100 p-1 rounded-lg overflow-x-auto">
           {(['Tous', 'En attente', 'Validé', 'Rejeté', 'Paiements', 'Paramètres'] as FilterTab[]).map((tab) => (
             <button
@@ -145,8 +102,8 @@ export function SuperAdminDashboard() {
               {tab === 'Validé' ? 'Validés' : tab === 'Rejeté' ? 'Rejetés' : tab}
               {tab !== 'Paramètres' && (
                 <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                  {tab === 'Tous' 
-                    ? registrations.length 
+                  {tab === 'Tous'
+                    ? registrations.length
                     : tab === 'Paiements'
                     ? pendingSubs.length
                     : registrations.filter(r => r.status === tab).length}
@@ -156,7 +113,7 @@ export function SuperAdminDashboard() {
           ))}
         </div>
       </div>
-      
+
       {activeTab === 'Paramètres' && (
         <div className="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
           <div className="bg-red-50 p-6 border-b border-red-100">
@@ -257,7 +214,7 @@ export function SuperAdminDashboard() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {pendingSubs.map((sub) => {
+              {pendingSubs.map((sub: any) => {
                 const reg = registrations.find(r => r.schoolId === sub.id);
                 return (
                   <tr key={sub.id}>
@@ -271,7 +228,7 @@ export function SuperAdminDashboard() {
                       {new Date(sub.updatedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button 
+                      <button
                         onClick={() => setSubToApprove(sub)}
                         className="text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition-all shadow-sm flex items-center gap-2 ml-auto"
                       >
@@ -299,7 +256,7 @@ export function SuperAdminDashboard() {
         onClose={() => !isResetting && setShowResetConfirm(false)}
         onConfirm={handleResetDatabase}
         title="Effacer toute la base de données"
-        message="Voulez-vous vraiment TOUT effacer (établissements, professeurs, étudiants, paiements, etc.) ? Cette opération est IRREVERSIBLE et seule la liste technique des comptes de connexion (dans Auth) survivra, mais ils seront vidés de leurs données EduTime."
+        message="Voulez-vous vraiment TOUT effacer (établissements, professeurs, étudiants, paiements, etc.) ? Cette opération est IRREVERSIBLE."
         confirmText={isResetting ? "Suppression encours..." : "Oui, TOUT supprimer"}
         cancelText="Annuler"
       />

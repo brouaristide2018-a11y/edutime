@@ -1,28 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc, deleteDoc, addDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
+import React, { useState } from 'react';
+import { useStore } from '../../store';
 import { Plus, Edit2, Trash2, CheckCircle, X, Save } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { compressImage } from '../../utils/image';
-
-interface SubscriptionPlan {
-  id: string;
-  name: string;
-  price: number;
-  billingCycle: 'monthly' | 'yearly';
-  features: string[];
-  status: 'active' | 'inactive';
-  paymentLink?: string;
-  paymentQrCode?: string;
-}
+import type { SubscriptionPlan } from '../../store';
 
 export function SuperAdminSubscriptions() {
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const subscriptionPlans = useStore(state => state.subscriptionPlans);
+  const addSubscriptionPlan = useStore(state => state.addSubscriptionPlan);
+  const updateSubscriptionPlan = useStore(state => state.updateSubscriptionPlan);
+  const deleteSubscriptionPlan = useStore(state => state.deleteSubscriptionPlan);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
   const [planToDelete, setPlanToDelete] = useState<string | null>(null);
-  
+
   const [formData, setFormData] = useState<Omit<SubscriptionPlan, 'id'>>({
     name: '',
     price: 0,
@@ -32,22 +24,6 @@ export function SuperAdminSubscriptions() {
     paymentLink: '',
     paymentQrCode: ''
   });
-
-  const fetchPlans = async () => {
-    try {
-      const snapshot = await getDocs(collection(db, 'subscription_plans'));
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubscriptionPlan));
-      setPlans(data);
-    } catch (error) {
-      console.error("Error fetching plans:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPlans();
-  }, []);
 
   const handleOpenModal = (plan?: SubscriptionPlan) => {
     if (plan) {
@@ -96,42 +72,27 @@ export function SuperAdminSubscriptions() {
     setFormData({ ...formData, features: newFeatures });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const planData = {
-        ...formData,
-        features: formData.features.filter(f => f.trim() !== '')
-      };
+    const planData = {
+      ...formData,
+      features: formData.features.filter(f => f.trim() !== '')
+    };
 
-      if (editingPlan) {
-        await setDoc(doc(db, 'subscription_plans', editingPlan.id), planData);
-      } else {
-        await addDoc(collection(db, 'subscription_plans'), planData);
-      }
-      
-      handleCloseModal();
-      fetchPlans();
-    } catch (error) {
-      console.error("Error saving plan:", error);
-      alert("Erreur lors de l'enregistrement du plan");
+    if (editingPlan) {
+      updateSubscriptionPlan(editingPlan.id, planData);
+    } else {
+      addSubscriptionPlan(planData);
     }
+
+    handleCloseModal();
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!planToDelete) return;
-    try {
-      await deleteDoc(doc(db, 'subscription_plans', planToDelete));
-      fetchPlans();
-    } catch (error) {
-      console.error("Error deleting plan:", error);
-      alert("Erreur lors de la suppression");
-    } finally {
-      setPlanToDelete(null);
-    }
+    deleteSubscriptionPlan(planToDelete);
+    setPlanToDelete(null);
   };
-
-  if (loading) return <div className="p-8">Chargement...</div>;
 
   return (
     <div className="p-8">
@@ -147,7 +108,7 @@ export function SuperAdminSubscriptions() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {plans.map((plan) => (
+        {subscriptionPlans.map((plan) => (
           <div key={plan.id} className={`bg-white rounded-xl shadow-sm border ${plan.status === 'active' ? 'border-indigo-200' : 'border-gray-200'} overflow-hidden flex flex-col`}>
             <div className={`p-6 border-b ${plan.status === 'active' ? 'bg-indigo-50 border-indigo-100' : 'bg-gray-50 border-gray-200'}`}>
               <div className="flex justify-between items-start mb-4">
@@ -161,7 +122,7 @@ export function SuperAdminSubscriptions() {
                 <span className="text-gray-500 font-medium">/{plan.billingCycle === 'monthly' ? 'mois' : 'an'}</span>
               </div>
             </div>
-            
+
             <div className="p-6 flex-1">
               <ul className="space-y-3">
                 {plan.features.map((feature, idx) => (
@@ -172,7 +133,7 @@ export function SuperAdminSubscriptions() {
                 ))}
               </ul>
             </div>
-            
+
             <div className="p-6 border-t border-gray-100 bg-gray-50 flex gap-3">
               <button
                 onClick={() => handleOpenModal(plan)}
@@ -191,8 +152,8 @@ export function SuperAdminSubscriptions() {
             </div>
           </div>
         ))}
-        
-        {plans.length === 0 && (
+
+        {subscriptionPlans.length === 0 && (
           <div className="col-span-full bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
             <p className="text-gray-500 mb-4">Aucun plan d'abonnement n'a été créé.</p>
             <button
@@ -218,7 +179,7 @@ export function SuperAdminSubscriptions() {
                 <X size={24} />
               </button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto flex-1">
               <form id="plan-form" onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -233,7 +194,7 @@ export function SuperAdminSubscriptions() {
                       placeholder="ex: Premium"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Statut</label>
                     <select
@@ -245,7 +206,7 @@ export function SuperAdminSubscriptions() {
                       <option value="inactive">Inactif</option>
                     </select>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Prix (FCFA)</label>
                     <input
@@ -257,7 +218,7 @@ export function SuperAdminSubscriptions() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Cycle de facturation</label>
                     <select
@@ -319,7 +280,6 @@ export function SuperAdminSubscriptions() {
                         placeholder="https://pay.example.com/plan"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       />
-                      <p className="mt-1 text-xs text-gray-500">Lien direct vers la page de paiement (Wave, Mobile Money, Stripe, etc.)</p>
                     </div>
 
                     <div>
@@ -332,7 +292,7 @@ export function SuperAdminSubscriptions() {
                           placeholder="https://example.com/qrcode.png"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                         />
-                        
+
                         <div className="flex items-center justify-center w-full">
                           <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
                             <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -340,9 +300,9 @@ export function SuperAdminSubscriptions() {
                               <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Cliquez pour charger</span> ou glissez une image</p>
                               <p className="text-xs text-gray-500">PNG, JPG, SVG (Max 1Mo)</p>
                             </div>
-                            <input 
-                              type="file" 
-                              className="hidden" 
+                            <input
+                              type="file"
+                              className="hidden"
                               accept="image/*"
                               onChange={async (e) => {
                                 const file = e.target.files?.[0];
@@ -364,10 +324,9 @@ export function SuperAdminSubscriptions() {
                           </label>
                         </div>
                       </div>
-                      <p className="mt-2 text-xs text-gray-500">Insérez l'URL ou chargez directement l'image de votre QR code de paiement spécifique à ce plan.</p>
                       {formData.paymentQrCode && (
                         <div className="mt-4 p-4 bg-gray-50 rounded-lg flex justify-center border border-dashed border-gray-300 relative">
-                          <button 
+                          <button
                             type="button"
                             onClick={() => setFormData({ ...formData, paymentQrCode: '' })}
                             className="absolute top-2 right-2 p-1 bg-red-100 text-red-600 rounded-full hover:bg-red-200"
@@ -381,7 +340,7 @@ export function SuperAdminSubscriptions() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="pt-6 border-t border-gray-200 mt-6 flex justify-end gap-3">
                   <button
                     type="button"

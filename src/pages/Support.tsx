@@ -1,101 +1,78 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 import { useStore } from '../store';
 import { Send, Plus, MessageSquare, Clock, CheckCircle } from 'lucide-react';
 
 export function Support() {
   const currentUser = useStore(state => state.currentUser);
-  const [tickets, setTickets] = useState<any[]>([]);
+  const supportTickets = useStore(state => state.supportTickets);
+  const addSupportTicket = useStore(state => state.addSupportTicket);
+  const updateSupportTicket = useStore(state => state.updateSupportTicket);
+
   const [activeTicket, setActiveTicket] = useState<any | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [newTicketSubject, setNewTicketSubject] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Filter tickets for current user, last 7 days
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const tickets = supportTickets
+    .filter(t => t.senderId === currentUser?.id && new Date(t.updatedAt) > sevenDaysAgo)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  // Keep active ticket in sync with store
   useEffect(() => {
-    if (!currentUser) return;
-
-    // Filter out tickets older than 7 days
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    const q = query(
-      collection(db, 'support_tickets'),
-      where('senderId', '==', currentUser.id),
-      orderBy('updatedAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedTickets = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as any))
-        .filter(ticket => new Date(ticket.updatedAt) > sevenDaysAgo);
-      
-      setTickets(fetchedTickets);
-      
-      if (activeTicket) {
-        const updatedActive = fetchedTickets.find(t => t.id === activeTicket.id);
-        if (updatedActive) setActiveTicket(updatedActive);
-      }
-    }, (error) => {
-      console.error("Error fetching support tickets:", error);
-    });
-
-    return () => unsubscribe();
-  }, [currentUser]);
+    if (activeTicket) {
+      const updated = tickets.find(t => t.id === activeTicket.id);
+      if (updated) setActiveTicket(updated);
+    }
+  }, [supportTickets]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeTicket?.messages]);
 
-  const handleCreateTicket = async (e: React.FormEvent) => {
+  const handleCreateTicket = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTicketSubject.trim() || !currentUser) return;
 
-    try {
-      const newTicket = {
-        subject: newTicketSubject,
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        senderRole: currentUser.role,
-        status: 'Ouvert',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        messages: []
-      };
+    const newTicket = {
+      subject: newTicketSubject,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderRole: currentUser.role,
+      status: 'Ouvert' as const,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: []
+    };
 
-      const docRef = await addDoc(collection(db, 'support_tickets'), newTicket);
-      setNewTicketSubject('');
-      setIsCreating(false);
-      setActiveTicket({ id: docRef.id, ...newTicket });
-    } catch (error) {
-      console.error("Error creating ticket:", error);
-    }
+    const id = addSupportTicket(newTicket);
+    setNewTicketSubject('');
+    setIsCreating(false);
+    setActiveTicket({ ...newTicket, id });
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeTicket || !currentUser) return;
 
-    try {
-      const message = {
-        id: Date.now().toString(),
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        text: newMessage,
-        timestamp: new Date().toISOString()
-      };
+    const message = {
+      id: Date.now().toString(),
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      text: newMessage,
+      timestamp: new Date().toISOString()
+    };
 
-      const ticketRef = doc(db, 'support_tickets', activeTicket.id);
-      await updateDoc(ticketRef, {
-        messages: [...(activeTicket.messages || []), message],
-        updatedAt: new Date().toISOString()
-      });
+    updateSupportTicket(activeTicket.id, {
+      messages: [...(activeTicket.messages || []), message],
+      updatedAt: new Date().toISOString()
+    });
 
-      setNewMessage('');
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
+    setNewMessage('');
   };
 
   return (
@@ -104,7 +81,7 @@ export function Support() {
       <div className="w-1/3 border-r border-gray-200 flex flex-col bg-gray-50">
         <div className="p-4 border-b border-gray-200 bg-white flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-900">Mes Requêtes</h2>
-          <button 
+          <button
             onClick={() => setIsCreating(true)}
             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
             title="Nouvelle requête"
@@ -112,7 +89,7 @@ export function Support() {
             <Plus className="w-5 h-5" />
           </button>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto">
           {tickets.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
