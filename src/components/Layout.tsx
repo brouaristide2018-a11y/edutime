@@ -59,7 +59,21 @@ export function Layout() {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
+
+  // Garde Planning ouvert si on est sur une de ses sous-routes
+  const planningPaths = ['/admin/schedule', '/admin/timetable', '/admin/timetable-class'];
+  const isOnPlanningRoute = planningPaths.some(p => location.pathname.startsWith(p));
+  const [expandedMenu, setExpandedMenu] = useState<string | null>(isOnPlanningRoute ? 'Planning' : null);
+
+  // Rouvre Planning automatiquement quand on navigue vers une sous-route
+  React.useEffect(() => {
+    if (isOnPlanningRoute) {
+      setExpandedMenu('Planning');
+    } else if (!planningPaths.some(p => location.pathname.startsWith(p))) {
+      setExpandedMenu(prev => (prev === 'Planning' ? null : prev));
+    }
+  }, [location.pathname]);
+
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   const filteredNavigation = navigation.filter(item => {

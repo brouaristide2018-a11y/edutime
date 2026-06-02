@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useStore, type Professor, type ContractType, type ProfessorStatus, type Gender } from '../store';
-import { Plus, Edit2, Trash2, X, Search, Filter, Eye, Camera } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Search, Filter, Eye, Camera, CheckCircle2 } from 'lucide-react';
 import { parseISO } from 'date-fns';
+import { useToast } from '../components/Toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ProfessorDetail } from './ProfessorDetail';
 import { compressImage } from '../utils/image';
@@ -32,8 +33,11 @@ export function Professors() {
   const navigate = useNavigate();
   const location = useLocation();
   const { professors, courses, addProfessor, updateProfessor, deleteProfessor, settings, addUser, deleteUser, updateUser, users } = useStore();
-  
+  const { showToast } = useToast();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isConfirmAddOpen, setIsConfirmAddOpen] = useState(false);
+  const [pendingFormData, setPendingFormData] = useState<typeof formData | null>(null);
   const [viewingProfId, setViewingProfId] = useState<string | null>(null);
   const [isCustomSpecialty, setIsCustomSpecialty] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -131,7 +135,7 @@ export function Professors() {
       // Check limits before adding a new professor
       const maxProfessors = settings.subscription?.maxProfessors || 10;
       if (professors.length >= maxProfessors) {
-        alert(`Limite atteinte ! Vous avez atteint le nombre maximum de professeurs (${maxProfessors}) pour votre plan actuel (${settings.subscription?.plan}). Veuillez passer à un plan supérieur pour en ajouter de nouveaux.`);
+        showToast(`Limite atteinte ! Maximum ${maxProfessors} professeurs pour le plan ${settings.subscription?.plan}.`, 'error');
         return;
       }
     }
@@ -199,11 +203,15 @@ export function Professors() {
         });
         updateProfessor(editingId, { ...formData, userId: newUserId });
       }
+      setIsModalOpen(false);
+      resetForm();
+      showToast(`Professeur ${formData.firstName} ${formData.lastName} modifié(e) avec succès.`, 'success');
+      return;
     } else {
       // Check if professor with this email already exists
       const existingProf = professors.find(p => p.email.toLowerCase() === formData.email.toLowerCase());
       if (existingProf) {
-        alert(`Un professeur avec l'email ${formData.email} existe déjà dans le système. Vous pouvez lui attribuer des cours directement. Ses disponibilités inter-établissements seront automatiquement prises en compte.`);
+        showToast(`Un professeur avec l'email ${formData.email} existe déjà.`, 'warning');
         setIsModalOpen(false);
         resetForm();
         return;
@@ -228,31 +236,47 @@ export function Professors() {
       
       const loginId = `${schoolCode}${nextSuffix.toString().padStart(3, '0')}`;
       
-      // Create the user first
-      const userId = addUser({
-        name: `${formData.firstName} ${formData.lastName}`,
-        email: formData.email,
-        loginId: loginId,
-        password: 'professeur',
-        role: 'Professeur',
-        status: formData.status,
-        schoolId: adminUser?.schoolId,
-        permissions: {
-          planning: { view: true, add: false, edit: false, delete: false },
-          payroll: { view: true, add: false, edit: false, delete: false },
-          users: { view: false, add: false, edit: false, delete: false },
-          settings: { view: false, add: false, edit: false, delete: false },
-        }
-      });
-      
-      // Then add the professor with the userId
-      addProfessor({ ...formData, availabilities: [], subjectIds: [], userId });
-      
-      // Show an alert with the generated credentials
-      alert(`Professeur ajouté avec succès !\n\nIdentifiant de connexion : ${loginId}\nMot de passe par défaut : professeur`);
+      // Stocker les données et demander confirmation
+      setPendingFormData({ ...formData, _loginId: loginId, _adminUser: adminUser } as any);
+      setIsConfirmAddOpen(true);
+      return; // Ne pas fermer la modal principale encore
     }
     setIsModalOpen(false);
     resetForm();
+  };
+
+  const confirmAddProfessor = () => {
+    if (!pendingFormData) return;
+    const { _loginId, _adminUser, ...profData } = pendingFormData as any;
+
+    const userId = addUser({
+      name: `${profData.firstName} ${profData.lastName}`,
+      email: profData.email,
+      loginId: _loginId,
+      password: 'professeur',
+      role: 'Professeur',
+      status: profData.status,
+      schoolId: _adminUser?.schoolId,
+      permissions: {
+        planning: { view: true, add: false, edit: false, delete: false },
+        payroll: { view: true, add: false, edit: false, delete: false },
+        users: { view: false, add: false, edit: false, delete: false },
+        settings: { view: false, add: false, edit: false, delete: false },
+      }
+    });
+
+    addProfessor({ ...profData, availabilities: [], subjectIds: [], userId });
+
+    setIsConfirmAddOpen(false);
+    setPendingFormData(null);
+    setIsModalOpen(false);
+    resetForm();
+
+    showToast(
+      `✅ ${profData.firstName} ${profData.lastName} ajouté(e) — Identifiant : ${_loginId} | Mdp : professeur`,
+      'success',
+      7000
+    );
   };
 
   const resetForm = () => {
@@ -661,9 +685,11 @@ export function Professors() {
                 }
               }
               await deleteProfessor(profToDelete.id);
+              const name = `${profToDelete.firstName} ${profToDelete.lastName}`;
               setProfToDelete(null);
+              showToast(`Professeur ${name} supprimé.`, 'info');
             } catch (error: any) {
-              alert("Erreur lors de la suppression du professeur: " + (error.message || error));
+              showToast("Erreur lors de la suppression.", 'error');
             }
           }
         }}
@@ -671,7 +697,45 @@ export function Professors() {
         message="Êtes-vous sûr de vouloir supprimer ce professeur ? Cette action est irréversible."
         confirmText="Supprimer"
         cancelText="Annuler"
+        isDanger
       />
+
+      {/* Modal de confirmation d'ajout */}
+      {isConfirmAddOpen && pendingFormData && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setIsConfirmAddOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 z-10">
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle2 className="w-8 h-8 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Confirmer l'ajout</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Voulez-vous ajouter <strong>{(pendingFormData as any).firstName} {(pendingFormData as any).lastName}</strong> comme professeur ?
+                </p>
+                <p className="text-xs text-indigo-600 mt-2 bg-indigo-50 rounded-lg px-3 py-2">
+                  Un identifiant de connexion lui sera automatiquement attribué.
+                </p>
+              </div>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => { setIsConfirmAddOpen(false); setPendingFormData(null); }}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={confirmAddProfessor}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  Confirmer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

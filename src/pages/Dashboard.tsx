@@ -47,27 +47,39 @@ export function Dashboard() {
     }
   };
 
+  // Normalise une date ISO (ex: "2026-06-02T00:00:00Z") en "yyyy-MM-dd"
+  const normalizeDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    return dateStr.split('T')[0];
+  };
+
   // --- Filtered Data ---
   const filteredCourses = useMemo(() => {
     return courses.filter(c => {
-      if (periodFilter === 'day') return c.date === todayStr;
+      const dateNorm = normalizeDate(c.date);
+      if (periodFilter === 'day') return dateNorm === todayStr;
       if (periodFilter === 'week') {
-        const date = parseISO(c.date);
-        return isWithinInterval(date, { start: startOfWeek(today, { weekStartsOn: 1 }), end: endOfWeek(today, { weekStartsOn: 1 }) });
+        try {
+          const date = parseISO(dateNorm);
+          return isWithinInterval(date, { start: startOfWeek(today, { weekStartsOn: 1 }), end: endOfWeek(today, { weekStartsOn: 1 }) });
+        } catch { return false; }
       }
-      if (periodFilter === 'month') return c.date.startsWith(currentMonthStr);
+      if (periodFilter === 'month') return dateNorm.startsWith(currentMonthStr);
       return true;
     });
   }, [courses, periodFilter, todayStr, currentMonthStr, today]);
 
   const filteredAttendances = useMemo(() => {
     return attendances.filter(a => {
-      if (periodFilter === 'day') return a.date === todayStr;
+      const dateNorm = normalizeDate(a.date);
+      if (periodFilter === 'day') return dateNorm === todayStr;
       if (periodFilter === 'week') {
-        const date = parseISO(a.date);
-        return isWithinInterval(date, { start: startOfWeek(today, { weekStartsOn: 1 }), end: endOfWeek(today, { weekStartsOn: 1 }) });
+        try {
+          const date = parseISO(dateNorm);
+          return isWithinInterval(date, { start: startOfWeek(today, { weekStartsOn: 1 }), end: endOfWeek(today, { weekStartsOn: 1 }) });
+        } catch { return false; }
       }
-      if (periodFilter === 'month') return a.date.startsWith(currentMonthStr);
+      if (periodFilter === 'month') return dateNorm.startsWith(currentMonthStr);
       return true;
     });
   }, [attendances, periodFilter, todayStr, currentMonthStr, today]);

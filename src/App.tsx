@@ -5,6 +5,7 @@
 
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ToastProvider } from './components/Toast';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Professors } from './pages/Professors';
@@ -107,6 +108,7 @@ export default function App() {
   }, []);
 
   return (
+    <ToastProvider>
     <BrowserRouter>
       <Routes>
         {/* Public Routes */}
@@ -157,5 +159,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </ToastProvider>
   );
 }

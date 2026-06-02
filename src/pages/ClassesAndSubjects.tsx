@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore, Class, Subject, ClassLevel, ClassStatus, ClassSubjectProfessor, TimeSlot } from '../store';
 import { Plus, Trash2, X, Edit2, Users, BookOpen, Search, Filter, Clock } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { useToast } from '../components/Toast';
 
 const PREDEFINED_SUBJECTS = [
   'Français',
@@ -53,9 +54,36 @@ const generateSubjectCode = (name: string) => {
   return name.substring(0, 4).toUpperCase().replace(/[^A-Z0-9]/g, '');
 };
 
+// Couleurs prédéfinies par matière
+const SUBJECT_COLORS: Record<string, string> = {
+  'Français': '#3b82f6', 'Anglais': '#10b981', 'Espagnol': '#f59e0b',
+  'Allemand': '#ef4444', 'Mathématiques': '#8b5cf6', 'Physique Chimie': '#06b6d4',
+  'SVT': '#84cc16', 'Informatique': '#6366f1', 'Histoire': '#d97706',
+  'Géographie': '#14b8a6', 'EDHC': '#ec4899', 'Philosophie': '#a855f7',
+  'Économie': '#0ea5e9', 'Comptabilité': '#f97316', 'Gestion': '#22d3ee',
+  'Éducation musicale': '#e879f9', 'Arts plastiques': '#fb923c', 'EPS': '#4ade80',
+};
+
 export function ClassesAndSubjects() {
   const { classes, subjects, professors, classSubjectProfessors, timeSlots, addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, assignProfessorToClassSubject, removeAssignment, addTimeSlot, updateTimeSlot, deleteTimeSlot, settings } = useStore();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'classes' | 'subjects' | 'assignments' | 'timeSlots'>('classes');
+
+  // Pré-remplir les matières si la liste est vide
+  useEffect(() => {
+    if (subjects.length === 0) {
+      PREDEFINED_SUBJECTS.forEach(name => {
+        addSubject({
+          name,
+          code: generateSubjectCode(name),
+          description: '',
+          weeklyHours: 2,
+          color: SUBJECT_COLORS[name] || '#3b82f6',
+          createdAt: new Date().toISOString(),
+        } as any);
+      });
+    }
+  }, []); // uniquement au premier rendu
   
   // Class Modal State
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);

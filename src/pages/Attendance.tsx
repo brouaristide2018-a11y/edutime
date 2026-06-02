@@ -2,11 +2,12 @@ import React, { useState, useMemo } from 'react';
 import { useStore, type Attendance as AttendanceType, AttendanceStatus, Course } from '../store';
 import { format, parseISO, isSameDay, differenceInMinutes } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { CheckCircle2, Clock, XCircle, UserPlus, Search, Filter, Calendar, FileText, Download, QrCode, Printer, Trash2 } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, UserPlus, Search, Filter, Calendar, FileText, Download, QrCode, Printer, Trash2, Plus, X } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { clsx } from 'clsx';
 import jsPDF from 'jspdf';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { useToast } from '../components/Toast';
 
 export function Attendance() {
   const { courses, professors, classes, subjects, attendances, addAttendance, updateAttendance, deleteAttendance, currentUser, settings } = useStore();
@@ -23,6 +24,8 @@ export function Attendance() {
   const [filterStatus, setFilterStatus] = useState('');
   const [showQRModal, setShowQRModal] = useState(false);
   const [isConfirmManualModalOpen, setIsConfirmManualModalOpen] = useState(false);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const { showToast } = useToast();
 
   // Manual Entry State
   const [manualForm, setManualForm] = useState<Partial<AttendanceType>>({
@@ -128,7 +131,9 @@ export function Attendance() {
       actualEndTime: '10:00',
       status: 'present'
     });
-    // Removed alert as per request (modal is the confirmation)
+    setIsConfirmManualModalOpen(false);
+    setIsManualModalOpen(false);
+    showToast('Pointage manuel enregistré avec succès.', 'success');
   };
 
   const filteredHistory = useMemo(() => {
@@ -481,8 +486,80 @@ export function Attendance() {
 
       {/* Tab: Manual */}
       {activeTab === 'manual' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-2xl">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Saisir un pointage manuel</h2>
+        <div className="space-y-4">
+          {/* Bouton d'ouverture du modal */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Pointage manuel</h2>
+              <p className="text-sm text-gray-500 mt-1">Enregistrer manuellement la présence d'un professeur</p>
+            </div>
+            <button
+              onClick={() => setIsManualModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-sm"
+            >
+              <Plus className="w-5 h-5" />
+              Nouveau pointage
+            </button>
+          </div>
+
+          {/* Liste des pointages manuels du jour */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+              <p className="text-sm font-medium text-gray-700">Pointages manuels du jour ({format(parseISO(selectedDate), 'dd/MM/yyyy')})</p>
+            </div>
+            {todayManualAttendances.length === 0 ? (
+              <div className="px-6 py-10 text-center text-gray-500">
+                <FileText className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                <p className="text-sm">Aucun pointage manuel pour cette date.</p>
+                <p className="text-xs text-gray-400 mt-1">Cliquez sur "Nouveau pointage" pour en ajouter un.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-600">Professeur</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-600">Classe</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-600">Matière</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-600">Horaire</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-gray-600">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {todayManualAttendances.map(a => {
+                      const prof = professors.find(p => p.id === a.professorId);
+                      const cls = classes.find(c => c.id === a.classId);
+                      const sub = subjects.find(s => s.id === a.subjectId);
+                      return (
+                        <tr key={a.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-900">{prof ? `${prof.firstName} ${prof.lastName}` : '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{cls?.name || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{sub?.name || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{a.plannedStartTime} - {a.plannedEndTime}</td>
+                          <td className="px-4 py-3"><StatusBadge status={a.status} validatedByAdmin={a.validatedByAdmin} /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Pointage Manuel */}
+      {isManualModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setIsManualModalOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto z-10">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl z-10">
+              <h2 className="text-lg font-semibold text-gray-900">Nouveau pointage manuel</h2>
+              <button onClick={() => setIsManualModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
           <form onSubmit={handleManualSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -612,15 +689,24 @@ export function Attendance() {
               </div>
             )}
 
-            <div className="pt-4">
+            <div className="pt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsManualModalOpen(false)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Annuler
+              </button>
               <button
                 type="submit"
-                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
               >
                 Enregistrer le pointage
               </button>
             </div>
           </form>
+            </div>
+          </div>
         </div>
       )}
 
