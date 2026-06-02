@@ -529,19 +529,43 @@ export const useStore = create<AppState>()(
 
       addProfessor: async (prof) => {
         const schoolId = get().currentUser?.schoolId || '';
+        const payload = {
+          first_name: prof.firstName, last_name: prof.lastName, gender: prof.gender,
+          birth_date: prof.birthDate, phone: prof.phone, email: prof.email,
+          address: prof.address, specialty: prof.specialty,
+          contract_type: prof.contractType, hourly_rate: prof.hourlyRate,
+          status: prof.status, hire_date: prof.hireDate,
+          subject_ids: prof.subjectIds || [], availabilities: prof.availabilities || [],
+          photo_url: prof.photoUrl,
+        };
         try {
-          const created = await api.professors.create({ ...prof, school_id: schoolId });
-          const newProf = { ...prof, id: created.id || created.data?.id || generateId(), schoolId };
+          const created = await api.professors.create(payload);
+          const newProf = { ...prof, id: created.id || generateId(), schoolId };
           set((state) => ({ professors: [...state.professors, newProf] }));
         } catch {
-          // Fallback local si API indisponible
           const id = generateId();
           set((state) => ({ professors: [...state.professors, { ...prof, id, schoolId }] }));
         }
       },
       updateProfessor: async (id, updatedProf) => {
+        const payload: Record<string, any> = {};
+        if (updatedProf.firstName  !== undefined) payload.first_name   = updatedProf.firstName;
+        if (updatedProf.lastName   !== undefined) payload.last_name    = updatedProf.lastName;
+        if (updatedProf.gender     !== undefined) payload.gender       = updatedProf.gender;
+        if (updatedProf.birthDate  !== undefined) payload.birth_date   = updatedProf.birthDate;
+        if (updatedProf.phone      !== undefined) payload.phone        = updatedProf.phone;
+        if (updatedProf.email      !== undefined) payload.email        = updatedProf.email;
+        if (updatedProf.address    !== undefined) payload.address      = updatedProf.address;
+        if (updatedProf.specialty  !== undefined) payload.specialty    = updatedProf.specialty;
+        if (updatedProf.contractType !== undefined) payload.contract_type = updatedProf.contractType;
+        if (updatedProf.hourlyRate !== undefined) payload.hourly_rate  = updatedProf.hourlyRate;
+        if (updatedProf.status     !== undefined) payload.status       = updatedProf.status;
+        if (updatedProf.hireDate   !== undefined) payload.hire_date    = updatedProf.hireDate;
+        if (updatedProf.subjectIds !== undefined) payload.subject_ids  = updatedProf.subjectIds;
+        if (updatedProf.availabilities !== undefined) payload.availabilities = updatedProf.availabilities;
+        if (updatedProf.photoUrl   !== undefined) payload.photo_url   = updatedProf.photoUrl;
         try {
-          await api.professors.update(id, updatedProf);
+          await api.professors.update(id, payload);
         } catch {
           // Continue with local update
         }
@@ -562,9 +586,16 @@ export const useStore = create<AppState>()(
 
       addClass: async (cls) => {
         const schoolId = get().currentUser?.schoolId || '';
+        const payload = {
+          name: cls.name, level: cls.level, description: cls.description,
+          capacity: cls.capacity, status: cls.status,
+          main_teacher_id: cls.mainTeacherId,
+          chef_de_classe: cls.chefDeClasse,
+          sous_chef_de_classe: cls.sousChefDeClasse,
+        };
         try {
-          const created = await api.classes.create({ ...cls, school_id: schoolId });
-          const newCls = { ...cls, id: created.id || created.data?.id || generateId(), schoolId, createdAt: new Date().toISOString() };
+          const created = await api.classes.create(payload);
+          const newCls = { ...cls, id: created.id || generateId(), schoolId, createdAt: new Date().toISOString() };
           set((state) => ({ classes: [...state.classes, newCls] }));
         } catch {
           const id = generateId();
@@ -572,8 +603,15 @@ export const useStore = create<AppState>()(
         }
       },
       updateClass: async (id, updatedCls) => {
+        const payload: Record<string, any> = {};
+        if (updatedCls.name !== undefined) payload.name = updatedCls.name;
+        if (updatedCls.level !== undefined) payload.level = updatedCls.level;
+        if (updatedCls.description !== undefined) payload.description = updatedCls.description;
+        if (updatedCls.capacity !== undefined) payload.capacity = updatedCls.capacity;
+        if (updatedCls.status !== undefined) payload.status = updatedCls.status;
+        if (updatedCls.mainTeacherId !== undefined) payload.main_teacher_id = updatedCls.mainTeacherId;
         try {
-          await api.classes.update(id, updatedCls);
+          await api.classes.update(id, payload);
         } catch {
           // Continue with local update
         }
@@ -594,9 +632,13 @@ export const useStore = create<AppState>()(
 
       addSubject: async (sub) => {
         const schoolId = get().currentUser?.schoolId || '';
+        const payload = {
+          name: sub.name, code: sub.code, description: sub.description,
+          weekly_hours: sub.weeklyHours, color: sub.color,
+        };
         try {
-          const created = await api.subjects.create({ ...sub, school_id: schoolId });
-          const newSub = { ...sub, id: created.id || created.data?.id || generateId(), schoolId, createdAt: new Date().toISOString() };
+          const created = await api.subjects.create(payload);
+          const newSub = { ...sub, id: created.id || generateId(), schoolId, createdAt: new Date().toISOString() };
           set((state) => ({ subjects: [...state.subjects, newSub] }));
         } catch {
           const id = generateId();
@@ -604,8 +646,14 @@ export const useStore = create<AppState>()(
         }
       },
       updateSubject: async (id, updatedSub) => {
+        const payload: Record<string, any> = {};
+        if (updatedSub.name !== undefined) payload.name = updatedSub.name;
+        if (updatedSub.code !== undefined) payload.code = updatedSub.code;
+        if (updatedSub.description !== undefined) payload.description = updatedSub.description;
+        if (updatedSub.weeklyHours !== undefined) payload.weekly_hours = updatedSub.weeklyHours;
+        if (updatedSub.color !== undefined) payload.color = updatedSub.color;
         try {
-          await api.subjects.update(id, updatedSub);
+          await api.subjects.update(id, payload);
         } catch {
           // Continue with local update
         }
@@ -642,9 +690,15 @@ export const useStore = create<AppState>()(
         const state = get();
         const schoolId = state.currentUser?.schoolId || '';
         const professor = state.professors.find(p => p.id === course.professorId);
+        const payload = {
+          professor_id: course.professorId, class_id: course.classId,
+          subject_id: course.subjectId, room_id: course.roomId,
+          date: course.date, start_time: course.startTime, end_time: course.endTime,
+          status: 'scheduled', professor_email: professor?.email,
+        };
         try {
-          const created = await api.courses.create({ ...course, school_id: schoolId });
-          const newCourse = { ...course, id: created.id || created.data?.id || generateId(), schoolId, status: 'scheduled' as const, professorEmail: professor?.email };
+          const created = await api.courses.create(payload);
+          const newCourse = { ...course, id: created.id || generateId(), schoolId, status: 'scheduled' as const, professorEmail: professor?.email };
           set((s) => ({ courses: [...s.courses, newCourse] }));
         } catch {
           const id = generateId();
@@ -654,8 +708,17 @@ export const useStore = create<AppState>()(
         }
       },
       updateCourse: async (id, updatedCourse) => {
+        const payload: Record<string, any> = {};
+        if (updatedCourse.professorId !== undefined) payload.professor_id = updatedCourse.professorId;
+        if (updatedCourse.classId !== undefined) payload.class_id = updatedCourse.classId;
+        if (updatedCourse.subjectId !== undefined) payload.subject_id = updatedCourse.subjectId;
+        if (updatedCourse.roomId !== undefined) payload.room_id = updatedCourse.roomId;
+        if (updatedCourse.date !== undefined) payload.date = updatedCourse.date;
+        if (updatedCourse.startTime !== undefined) payload.start_time = updatedCourse.startTime;
+        if (updatedCourse.endTime !== undefined) payload.end_time = updatedCourse.endTime;
+        if (updatedCourse.status !== undefined) payload.status = updatedCourse.status;
         try {
-          await api.courses.update(id, updatedCourse);
+          await api.courses.update(id, payload);
         } catch {
           // Continue with local update
         }
@@ -686,9 +749,10 @@ export const useStore = create<AppState>()(
 
       addRoom: async (room) => {
         const schoolId = get().currentUser?.schoolId || '';
+        const payload = { name: room.name, capacity: room.capacity, type: room.type };
         try {
-          const created = await api.rooms.create({ ...room, school_id: schoolId });
-          const newRoom = { ...room, id: created.id || created.data?.id || generateId(), schoolId };
+          const created = await api.rooms.create(payload);
+          const newRoom = { ...room, id: created.id || generateId(), schoolId };
           set((state) => ({ rooms: [...state.rooms, newRoom] }));
         } catch {
           const id = generateId();
@@ -696,8 +760,12 @@ export const useStore = create<AppState>()(
         }
       },
       updateRoom: async (id, updatedRoom) => {
+        const payload: Record<string, any> = {};
+        if (updatedRoom.name !== undefined) payload.name = updatedRoom.name;
+        if (updatedRoom.capacity !== undefined) payload.capacity = updatedRoom.capacity;
+        if (updatedRoom.type !== undefined) payload.type = updatedRoom.type;
         try {
-          await api.rooms.update(id, updatedRoom);
+          await api.rooms.update(id, payload);
         } catch {
           // Continue with local update
         }
@@ -718,9 +786,21 @@ export const useStore = create<AppState>()(
 
       addAttendance: async (attendance) => {
         const schoolId = attendance.schoolId || get().currentUser?.schoolId || '';
+        const payload = {
+          course_id: attendance.courseId, professor_id: attendance.professorId,
+          class_id: attendance.classId, subject_id: attendance.subjectId,
+          date: attendance.date,
+          planned_start_time: attendance.plannedStartTime, planned_end_time: attendance.plannedEndTime,
+          actual_start_time: attendance.actualStartTime, actual_end_time: attendance.actualEndTime,
+          status: attendance.status,
+          replacement_professor_id: attendance.replacementProfessorId,
+          calculated_hours: attendance.calculatedHours,
+          validated_by_admin: attendance.validatedByAdmin,
+          scanned_at: attendance.scannedAt,
+        };
         try {
-          const created = await api.attendances.create({ ...attendance, school_id: schoolId });
-          const newAttendance = { ...attendance, id: created.id || created.data?.id || generateId(), schoolId, createdAt: new Date().toISOString() };
+          const created = await api.attendances.create(payload);
+          const newAttendance = { ...attendance, id: created.id || generateId(), schoolId, createdAt: new Date().toISOString() };
           set((state) => ({ attendances: [...state.attendances, newAttendance] }));
         } catch {
           const id = generateId();
@@ -728,8 +808,15 @@ export const useStore = create<AppState>()(
         }
       },
       updateAttendance: async (id, updatedAttendance) => {
+        const payload: Record<string, any> = {};
+        if (updatedAttendance.status !== undefined) payload.status = updatedAttendance.status;
+        if (updatedAttendance.actualStartTime !== undefined) payload.actual_start_time = updatedAttendance.actualStartTime;
+        if (updatedAttendance.actualEndTime !== undefined) payload.actual_end_time = updatedAttendance.actualEndTime;
+        if (updatedAttendance.calculatedHours !== undefined) payload.calculated_hours = updatedAttendance.calculatedHours;
+        if (updatedAttendance.replacementProfessorId !== undefined) payload.replacement_professor_id = updatedAttendance.replacementProfessorId;
+        if (updatedAttendance.validatedByAdmin !== undefined) payload.validated_by_admin = updatedAttendance.validatedByAdmin;
         try {
-          await api.attendances.update(id, updatedAttendance);
+          await api.attendances.update(id, payload);
         } catch {
           // Continue with local update
         }
@@ -750,9 +837,17 @@ export const useStore = create<AppState>()(
 
       addPayment: async (payment) => {
         const schoolId = get().currentUser?.schoolId || '';
+        const payload = {
+          professor_id: payment.professorId, month: payment.month,
+          amount: payment.amount, hours: payment.hours,
+          normal_hours: payment.normalHours, overtime_hours: payment.overtimeHours,
+          missed_hours: payment.missedHours, planned_hours: payment.plannedHours,
+          status: payment.status, paid_at: payment.paidAt,
+          payment_method: payment.paymentMethod, reference: payment.reference,
+        };
         try {
-          const created = await api.payments.create({ ...payment, school_id: schoolId });
-          const newPayment = { ...payment, id: created.id || created.data?.id || generateId(), schoolId };
+          const created = await api.payments.create(payload);
+          const newPayment = { ...payment, id: created.id || generateId(), schoolId };
           set((state) => ({ payments: [...state.payments, newPayment] }));
         } catch {
           const id = generateId();
@@ -760,8 +855,14 @@ export const useStore = create<AppState>()(
         }
       },
       updatePayment: async (id, updatedPayment) => {
+        const payload: Record<string, any> = {};
+        if (updatedPayment.status !== undefined) payload.status = updatedPayment.status;
+        if (updatedPayment.amount !== undefined) payload.amount = updatedPayment.amount;
+        if (updatedPayment.paidAt !== undefined) payload.paid_at = updatedPayment.paidAt;
+        if (updatedPayment.paymentMethod !== undefined) payload.payment_method = updatedPayment.paymentMethod;
+        if (updatedPayment.reference !== undefined) payload.reference = updatedPayment.reference;
         try {
-          await api.payments.update(id, updatedPayment);
+          await api.payments.update(id, payload);
         } catch {
           // Continue with local update
         }
@@ -813,9 +914,13 @@ export const useStore = create<AppState>()(
 
       addTimeSlot: async (slot) => {
         const schoolId = get().currentUser?.schoolId || '';
+        const payload = {
+          start_time: slot.startTime, end_time: slot.endTime,
+          name: slot.name, type: slot.type,
+        };
         try {
-          const created = await api.timeslots.create({ ...slot, school_id: schoolId });
-          const newSlot = { ...slot, id: created.id || created.data?.id || generateId(), schoolId };
+          const created = await api.timeslots.create(payload);
+          const newSlot = { ...slot, id: created.id || generateId(), schoolId };
           set((state) => ({ timeSlots: [...state.timeSlots, newSlot] }));
         } catch {
           const id = generateId();
@@ -823,8 +928,13 @@ export const useStore = create<AppState>()(
         }
       },
       updateTimeSlot: async (id, slot) => {
+        const payload: Record<string, any> = {};
+        if (slot.startTime !== undefined) payload.start_time = slot.startTime;
+        if (slot.endTime !== undefined) payload.end_time = slot.endTime;
+        if (slot.name !== undefined) payload.name = slot.name;
+        if (slot.type !== undefined) payload.type = slot.type;
         try {
-          await api.timeslots.update(id, slot);
+          await api.timeslots.update(id, payload);
         } catch {
           // Continue with local update
         }
@@ -846,9 +956,14 @@ export const useStore = create<AppState>()(
       addProfessorRequest: async (request) => {
         const schoolId = get().currentUser?.schoolId || '';
         const now = new Date().toISOString();
+        const payload = {
+          professor_id: request.professorId, type: request.type,
+          date: request.date, reason: request.reason, status: request.status,
+          course_id: request.courseId,
+        };
         try {
-          const created = await api.requests.create({ ...request, school_id: schoolId });
-          const newReq = { ...request, id: created.id || created.data?.id || generateId(), schoolId, createdAt: now, updatedAt: now };
+          const created = await api.requests.create(payload);
+          const newReq = { ...request, id: created.id || generateId(), schoolId, createdAt: now, updatedAt: now };
           set((state) => ({ professorRequests: [...state.professorRequests, newReq] }));
         } catch {
           const id = generateId();
@@ -856,8 +971,11 @@ export const useStore = create<AppState>()(
         }
       },
       updateProfessorRequest: async (id, request) => {
+        const payload: Record<string, any> = {};
+        if (request.status !== undefined) payload.status = request.status;
+        if (request.reason !== undefined) payload.reason = request.reason;
         try {
-          await api.requests.update(id, request);
+          await api.requests.update(id, payload);
         } catch {
           // Continue with local update
         }
