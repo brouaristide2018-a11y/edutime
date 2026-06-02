@@ -38,6 +38,8 @@ import { useStore } from './store';
 
 import { LandingPage } from './pages/LandingPage';
 import { QuickAttendance } from './pages/QuickAttendance';
+import { api, getToken, removeToken } from './api';
+import { connectWebSocket, disconnectWebSocket } from './websocket';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const currentUser = useStore(state => state.currentUser);
@@ -52,6 +54,57 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 import { Support } from './pages/Support';
 
 export default function App() {
+  const setCurrentUser = useStore(state => state.setCurrentUser);
+  const syncFromAPI = useStore(state => state.syncFromAPI);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+
+    // Validate existing token and reload user data
+    api.auth.me()
+      .then((userData: any) => {
+        if (!userData) {
+          removeToken();
+          setCurrentUser(null);
+          return;
+        }
+        // Normalize snake_case → camelCase
+        const user = {
+          id: userData.id,
+          schoolId: userData.school_id || userData.schoolId,
+          schoolCode: userData.school_code || userData.schoolCode,
+          schoolEmail: userData.school_email || userData.schoolEmail,
+          name: userData.name || `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
+          email: userData.email,
+          loginId: userData.login_id || userData.loginId,
+          role: userData.role,
+          status: userData.status || 'Actif',
+          permissions: userData.permissions || {
+            planning: { view: true, add: true, edit: true, delete: true },
+            payroll: { view: true, add: true, edit: true, delete: true },
+            users: { view: true, add: true, edit: true, delete: true },
+            settings: { view: true, add: true, edit: true, delete: true },
+          },
+        };
+        setCurrentUser(user as any);
+
+        // Sync data from API if user has a school
+        const schoolId = user.schoolId;
+        if (schoolId) {
+          syncFromAPI(schoolId).catch(() => {});
+          connectWebSocket(schoolId, token);
+        }
+      })
+      .catch(() => {
+        removeToken();
+        setCurrentUser(null);
+      });
+
+    return () => {
+      disconnectWebSocket();
+    };
+  }, []);
 
   return (
     <BrowserRouter>

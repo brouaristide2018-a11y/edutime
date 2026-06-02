@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
+import { api } from '../api';
 import { Building2, LogIn, Lock, Mail, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react';
 import { RegisterForm } from './RegisterForm';
 
@@ -13,7 +14,6 @@ export function Login() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentBg, setCurrentBg] = useState(0);
-  const setCurrentUser = useStore(state => state.setCurrentUser);
   const platformSettings = useStore(state => state.platformSettings);
   const addRegistration = useStore(state => state.addRegistration);
   const addUser = useStore(state => state.addUser);
@@ -43,35 +43,37 @@ export function Login() {
       setError('');
       setRegistrationSuccess(false);
 
-      const schoolId = `school_${Math.random().toString(36).substr(2, 9)}`;
-
-      const newAdmin = {
-        name: formData.nomEtablissement,
-        email: formData.emailEtablissement,
-        password: formData.password,
-        role: 'Admin' as const,
-        status: 'En attente' as const,
-        schoolId: schoolId,
-        schoolCode: formData.codeEtablissement,
-        schoolEmail: formData.emailEtablissement,
-        subscriptionStatus: 'inactive' as const,
-        lastLogin: new Date().toISOString(),
-        permissions: {
-          planning: { view: true, add: true, edit: true, delete: true },
-          payroll: { view: true, add: true, edit: true, delete: true },
-          users: { view: true, add: true, edit: true, delete: true },
-          settings: { view: true, add: true, edit: true, delete: true },
-        }
-      };
-
-      addUser({ ...newAdmin, id: formData.emailEtablissement });
-
-      addRegistration({
-        ...formData,
-        schoolId: schoolId,
-        status: 'En attente',
-        createdAt: new Date().toISOString()
-      });
+      try {
+        await api.auth.register(formData);
+      } catch {
+        // Fallback local si l'API d'inscription n'est pas disponible
+        const schoolId = `school_${Math.random().toString(36).substr(2, 9)}`;
+        addUser({
+          id: formData.emailEtablissement,
+          name: formData.nomEtablissement,
+          email: formData.emailEtablissement,
+          password: formData.password,
+          role: 'Admin' as const,
+          status: 'En attente' as const,
+          schoolId: schoolId,
+          schoolCode: formData.codeEtablissement,
+          schoolEmail: formData.emailEtablissement,
+          subscriptionStatus: 'inactive' as const,
+          lastLogin: new Date().toISOString(),
+          permissions: {
+            planning: { view: true, add: true, edit: true, delete: true },
+            payroll: { view: true, add: true, edit: true, delete: true },
+            users: { view: true, add: true, edit: true, delete: true },
+            settings: { view: true, add: true, edit: true, delete: true },
+          }
+        });
+        addRegistration({
+          ...formData,
+          schoolId: schoolId,
+          status: 'En attente',
+          createdAt: new Date().toISOString()
+        });
+      }
 
       setRegistrationSuccess(true);
       setIsRegistering(false);
@@ -83,6 +85,9 @@ export function Login() {
     }
   };
 
+  const login = useStore(state => state.login);
+  const syncFromAPI = useStore(state => state.syncFromAPI);
+
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -92,68 +97,37 @@ export function Login() {
 
       const loginEmailValue = email.trim();
 
-      // Super Admin Shortcut
-      if ((loginEmailValue === '26' || loginEmailValue === 'cydrovis@gmail.com') && password === 'admin123') {
-        setCurrentUser({
-          id: 'super-admin',
-          name: 'Super Administrateur',
-          role: 'SuperAdmin',
-          email: 'cydrovis@gmail.com',
-          status: 'Actif',
-          permissions: {
-            planning: { view: true, add: true, edit: true, delete: true },
-            payroll: { view: true, add: true, edit: true, delete: true },
-            users: { view: true, add: true, edit: true, delete: true },
-            settings: { view: true, add: true, edit: true, delete: true },
-          }
-        } as any);
+      // Appel API d'authentification
+      const success = await login(loginEmailValue, password);
+
+      if (!success) {
+        setError('Identifiants invalides.');
+        return;
+      }
+
+      const currentUser = useStore.getState().currentUser;
+      if (!currentUser) {
+        setError('Erreur lors de la récupération du profil.');
+        return;
+      }
+
+      // Charger les données de l'école si applicable
+      if (currentUser.schoolId) {
+        syncFromAPI(currentUser.schoolId).catch(() => {});
+      }
+
+      // Redirection selon le rôle
+      if (currentUser.role === 'SuperAdmin') {
         navigate('/super-admin');
-        return;
-      }
-
-      // Search user in local store
-      const users = useStore.getState().users;
-      const userData = users.find(u =>
-        (u.email === loginEmailValue ||
-         u.loginId === loginEmailValue ||
-         u.schoolCode === loginEmailValue ||
-         u.schoolEmail === loginEmailValue)
-      );
-
-      if (!userData) {
-        setError('Identifiants invalides.');
-        return;
-      }
-
-      // Verify password
-      if (userData.password && userData.password !== password) {
-        setError('Identifiants invalides.');
-        return;
-      }
-
-      // Check subscription status in settings (local check)
-      if (userData.schoolId) {
-        const settings = useStore.getState().settings;
-        if (settings.subscription?.status === 'Suspendu') {
-          setError("Oups! Le compte de l'établissement a été suspendu suite à un non paiement ou à la fin de la période d'essai.");
-          return;
-        }
-      }
-
-      if (userData.status === 'Actif') {
-        setCurrentUser(userData);
-        navigate(userData.role === 'Professeur' ? '/prof' : '/admin');
-      } else if (userData.status === 'En attente') {
-        setError('Compte en attente de validation.');
-      } else if (userData.status === 'Suspendu') {
-        setError('Votre compte a été suspendu par l\'administration.');
+      } else if (currentUser.role === 'Professeur') {
+        navigate('/prof');
       } else {
-        setError('Compte inactif.');
+        navigate('/admin');
       }
 
     } catch (err: any) {
       console.error('Login error:', err);
-      setError('Erreur lors de la connexion.');
+      setError(err.message || 'Erreur lors de la connexion.');
     } finally {
       setIsLoading(false);
     }

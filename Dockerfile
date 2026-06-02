@@ -15,8 +15,12 @@ COPY . .
 # --- Gemini AI ---
 ARG GEMINI_API_KEY
 
+# --- Backend API ---
+ARG VITE_API_URL
+
 # Exposer les variables à Vite au moment du build
 ENV GEMINI_API_KEY=$GEMINI_API_KEY
+ENV VITE_API_URL=$VITE_API_URL
 
 # Build de production
 RUN npm run build

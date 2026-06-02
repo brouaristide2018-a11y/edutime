@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { api, setToken, removeToken } from './api';
 
 export type ContractType = 'Temps plein' | 'Vacataire';
 export type ProfessorStatus = 'Actif' | 'Inactif';
@@ -360,53 +361,53 @@ interface AppState {
   subscriptionPlans: SubscriptionPlan[];
   supportTickets: SupportTicket[];
 
-  addTimeSlot: (slot: Omit<TimeSlot, 'id' | 'schoolId'>) => void;
-  updateTimeSlot: (id: string, slot: Partial<TimeSlot>) => void;
-  deleteTimeSlot: (id: string) => void;
+  addTimeSlot: (slot: Omit<TimeSlot, 'id' | 'schoolId'>) => void | Promise<void>;
+  updateTimeSlot: (id: string, slot: Partial<TimeSlot>) => void | Promise<void>;
+  deleteTimeSlot: (id: string) => void | Promise<void>;
   clearAssignments: () => Promise<void>;
 
   currentUser: User | null;
   setCurrentUser: (user: User | null) => void;
   setStore: (state: Partial<AppState>) => void;
 
-  updateSettings: (settings: Partial<Settings>) => void;
-  updatePlatformSettings: (settings: Partial<PlatformSettings>) => void;
+  updateSettings: (settings: Partial<Settings>) => void | Promise<void>;
+  updatePlatformSettings: (settings: Partial<PlatformSettings>) => void | Promise<void>;
 
-  addProfessor: (prof: Omit<Professor, 'id' | 'schoolId'>) => void;
-  updateProfessor: (id: string, prof: Partial<Professor>) => void;
+  addProfessor: (prof: Omit<Professor, 'id' | 'schoolId'>) => void | Promise<void>;
+  updateProfessor: (id: string, prof: Partial<Professor>) => void | Promise<void>;
   deleteProfessor: (id: string) => Promise<void>;
 
-  addClass: (cls: Omit<Class, 'id' | 'schoolId'>) => void;
-  updateClass: (id: string, cls: Partial<Class>) => void;
-  deleteClass: (id: string) => void;
+  addClass: (cls: Omit<Class, 'id' | 'schoolId'>) => void | Promise<void>;
+  updateClass: (id: string, cls: Partial<Class>) => void | Promise<void>;
+  deleteClass: (id: string) => void | Promise<void>;
 
-  addSubject: (sub: Omit<Subject, 'id' | 'schoolId'>) => void;
-  updateSubject: (id: string, sub: Partial<Subject>) => void;
-  deleteSubject: (id: string) => void;
+  addSubject: (sub: Omit<Subject, 'id' | 'schoolId'>) => void | Promise<void>;
+  updateSubject: (id: string, sub: Partial<Subject>) => void | Promise<void>;
+  deleteSubject: (id: string) => void | Promise<void>;
 
   assignProfessorToClassSubject: (assignment: Omit<ClassSubjectProfessor, 'id' | 'schoolId'>) => void;
   removeAssignment: (id: string) => void;
 
-  addCourse: (course: Omit<Course, 'id' | 'status' | 'schoolId'>) => void;
-  updateCourse: (id: string, course: Partial<Course>) => void;
-  updateCourseStatus: (id: string, status: CourseStatus) => void;
-  deleteCourse: (id: string) => void;
+  addCourse: (course: Omit<Course, 'id' | 'status' | 'schoolId'>) => void | Promise<void>;
+  updateCourse: (id: string, course: Partial<Course>) => void | Promise<void>;
+  updateCourseStatus: (id: string, status: CourseStatus) => void | Promise<void>;
+  deleteCourse: (id: string) => void | Promise<void>;
 
-  addRoom: (room: Omit<Room, 'id' | 'schoolId'>) => void;
-  updateRoom: (id: string, room: Partial<Room>) => void;
-  deleteRoom: (id: string) => void;
+  addRoom: (room: Omit<Room, 'id' | 'schoolId'>) => void | Promise<void>;
+  updateRoom: (id: string, room: Partial<Room>) => void | Promise<void>;
+  deleteRoom: (id: string) => void | Promise<void>;
 
-  addAttendance: (attendance: Omit<Attendance, 'id' | 'createdAt' | 'schoolId'> & { schoolId?: string }) => void;
-  updateAttendance: (id: string, attendance: Partial<Attendance>) => void;
-  deleteAttendance: (id: string) => void;
+  addAttendance: (attendance: Omit<Attendance, 'id' | 'createdAt' | 'schoolId'> & { schoolId?: string }) => void | Promise<void>;
+  updateAttendance: (id: string, attendance: Partial<Attendance>) => void | Promise<void>;
+  deleteAttendance: (id: string) => void | Promise<void>;
 
-  addPayment: (payment: Omit<Payment, 'id' | 'schoolId'>) => void;
-  updatePayment: (id: string, payment: Partial<Payment>) => void;
-  deletePayment: (id: string) => void;
+  addPayment: (payment: Omit<Payment, 'id' | 'schoolId'>) => void | Promise<void>;
+  updatePayment: (id: string, payment: Partial<Payment>) => void | Promise<void>;
+  deletePayment: (id: string) => void | Promise<void>;
 
-  addProfessorRequest: (request: Omit<ProfessorRequest, 'id' | 'createdAt' | 'updatedAt' | 'schoolId'>) => void;
-  updateProfessorRequest: (id: string, request: Partial<ProfessorRequest>) => void;
-  deleteProfessorRequest: (id: string) => void;
+  addProfessorRequest: (request: Omit<ProfessorRequest, 'id' | 'createdAt' | 'updatedAt' | 'schoolId'>) => void | Promise<void>;
+  updateProfessorRequest: (id: string, request: Partial<ProfessorRequest>) => void | Promise<void>;
+  deleteProfessorRequest: (id: string) => void | Promise<void>;
 
   addUser: (user: Omit<User, 'id'> | User) => string;
   updateUser: (id: string, user: Partial<User>) => void;
@@ -432,8 +433,9 @@ interface AppState {
   updateSupportTicket: (id: string, ticket: Partial<SupportTicket>) => void;
   deleteSupportTicket: (id: string) => void;
 
-  login: (identifier: string, password?: string) => boolean;
+  login: (identifier: string, password?: string) => Promise<boolean>;
   logout: () => void;
+  syncFromAPI: (schoolId: string) => Promise<void>;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -525,55 +527,98 @@ export const useStore = create<AppState>()(
         }));
       },
 
-      addProfessor: (prof) => {
+      addProfessor: async (prof) => {
         const schoolId = get().currentUser?.schoolId || '';
-        const id = generateId();
-        set((state) => ({
-          professors: [...state.professors, { ...prof, id, schoolId }]
-        }));
+        try {
+          const created = await api.professors.create({ ...prof, school_id: schoolId });
+          const newProf = { ...prof, id: created.id || created.data?.id || generateId(), schoolId };
+          set((state) => ({ professors: [...state.professors, newProf] }));
+        } catch {
+          // Fallback local si API indisponible
+          const id = generateId();
+          set((state) => ({ professors: [...state.professors, { ...prof, id, schoolId }] }));
+        }
       },
-      updateProfessor: (id, updatedProf) => {
+      updateProfessor: async (id, updatedProf) => {
+        try {
+          await api.professors.update(id, updatedProf);
+        } catch {
+          // Continue with local update
+        }
         set((state) => ({
           professors: state.professors.map(p => p.id === id ? { ...p, ...updatedProf } : p)
         }));
       },
       deleteProfessor: async (id) => {
+        try {
+          await api.professors.delete(id);
+        } catch {
+          // Continue with local delete
+        }
         set((state) => ({
           professors: state.professors.filter(p => p.id !== id)
         }));
       },
 
-      addClass: (cls) => {
+      addClass: async (cls) => {
         const schoolId = get().currentUser?.schoolId || '';
-        const id = generateId();
-        set((state) => ({
-          classes: [...state.classes, { ...cls, id, schoolId, createdAt: new Date().toISOString() }]
-        }));
+        try {
+          const created = await api.classes.create({ ...cls, school_id: schoolId });
+          const newCls = { ...cls, id: created.id || created.data?.id || generateId(), schoolId, createdAt: new Date().toISOString() };
+          set((state) => ({ classes: [...state.classes, newCls] }));
+        } catch {
+          const id = generateId();
+          set((state) => ({ classes: [...state.classes, { ...cls, id, schoolId, createdAt: new Date().toISOString() }] }));
+        }
       },
-      updateClass: (id, updatedCls) => {
+      updateClass: async (id, updatedCls) => {
+        try {
+          await api.classes.update(id, updatedCls);
+        } catch {
+          // Continue with local update
+        }
         set((state) => ({
           classes: state.classes.map(c => c.id === id ? { ...c, ...updatedCls } : c)
         }));
       },
-      deleteClass: (id) => {
+      deleteClass: async (id) => {
+        try {
+          await api.classes.delete(id);
+        } catch {
+          // Continue with local delete
+        }
         set((state) => ({
           classes: state.classes.filter(c => c.id !== id)
         }));
       },
 
-      addSubject: (sub) => {
+      addSubject: async (sub) => {
         const schoolId = get().currentUser?.schoolId || '';
-        const id = generateId();
-        set((state) => ({
-          subjects: [...state.subjects, { ...sub, id, schoolId, createdAt: new Date().toISOString() }]
-        }));
+        try {
+          const created = await api.subjects.create({ ...sub, school_id: schoolId });
+          const newSub = { ...sub, id: created.id || created.data?.id || generateId(), schoolId, createdAt: new Date().toISOString() };
+          set((state) => ({ subjects: [...state.subjects, newSub] }));
+        } catch {
+          const id = generateId();
+          set((state) => ({ subjects: [...state.subjects, { ...sub, id, schoolId, createdAt: new Date().toISOString() }] }));
+        }
       },
-      updateSubject: (id, updatedSub) => {
+      updateSubject: async (id, updatedSub) => {
+        try {
+          await api.subjects.update(id, updatedSub);
+        } catch {
+          // Continue with local update
+        }
         set((state) => ({
           subjects: state.subjects.map(s => s.id === id ? { ...s, ...updatedSub } : s)
         }));
       },
-      deleteSubject: (id) => {
+      deleteSubject: async (id) => {
+        try {
+          await api.subjects.delete(id);
+        } catch {
+          // Continue with local delete
+        }
         set((state) => ({
           subjects: state.subjects.filter(s => s.id !== id)
         }));
@@ -593,91 +638,143 @@ export const useStore = create<AppState>()(
         set({ classSubjectProfessors: [] });
       },
 
-      addCourse: (course) => {
+      addCourse: async (course) => {
         const state = get();
         const schoolId = state.currentUser?.schoolId || '';
         const professor = state.professors.find(p => p.id === course.professorId);
-        const id = generateId();
-        set((s) => ({
-          courses: [...s.courses, {
-            ...course,
-            id,
-            schoolId,
-            status: 'scheduled',
-            professorEmail: professor?.email
-          }]
-        }));
+        try {
+          const created = await api.courses.create({ ...course, school_id: schoolId });
+          const newCourse = { ...course, id: created.id || created.data?.id || generateId(), schoolId, status: 'scheduled' as const, professorEmail: professor?.email };
+          set((s) => ({ courses: [...s.courses, newCourse] }));
+        } catch {
+          const id = generateId();
+          set((s) => ({
+            courses: [...s.courses, { ...course, id, schoolId, status: 'scheduled' as const, professorEmail: professor?.email }]
+          }));
+        }
       },
-      updateCourse: (id, updatedCourse) => {
+      updateCourse: async (id, updatedCourse) => {
+        try {
+          await api.courses.update(id, updatedCourse);
+        } catch {
+          // Continue with local update
+        }
         set((state) => ({
           courses: state.courses.map(c => c.id === id ? { ...c, ...updatedCourse } : c)
         }));
       },
-      updateCourseStatus: (id, status) => {
+      updateCourseStatus: async (id, status) => {
+        try {
+          await api.courses.updateStatus(id, status);
+        } catch {
+          // Continue with local update
+        }
         set((state) => ({
           courses: state.courses.map(c => c.id === id ? { ...c, status } : c)
         }));
       },
-      deleteCourse: (id) => {
+      deleteCourse: async (id) => {
+        try {
+          await api.courses.delete(id);
+        } catch {
+          // Continue with local delete
+        }
         set((state) => ({
           courses: state.courses.filter(c => c.id !== id)
         }));
       },
 
-      addRoom: (room) => {
+      addRoom: async (room) => {
         const schoolId = get().currentUser?.schoolId || '';
-        const id = generateId();
-        set((state) => ({
-          rooms: [...state.rooms, { ...room, id, schoolId }]
-        }));
+        try {
+          const created = await api.rooms.create({ ...room, school_id: schoolId });
+          const newRoom = { ...room, id: created.id || created.data?.id || generateId(), schoolId };
+          set((state) => ({ rooms: [...state.rooms, newRoom] }));
+        } catch {
+          const id = generateId();
+          set((state) => ({ rooms: [...state.rooms, { ...room, id, schoolId }] }));
+        }
       },
-      updateRoom: (id, updatedRoom) => {
+      updateRoom: async (id, updatedRoom) => {
+        try {
+          await api.rooms.update(id, updatedRoom);
+        } catch {
+          // Continue with local update
+        }
         set((state) => ({
           rooms: state.rooms.map(r => r.id === id ? { ...r, ...updatedRoom } : r)
         }));
       },
-      deleteRoom: (id) => {
+      deleteRoom: async (id) => {
+        try {
+          await api.rooms.delete(id);
+        } catch {
+          // Continue with local delete
+        }
         set((state) => ({
           rooms: state.rooms.filter(r => r.id !== id)
         }));
       },
 
-      addAttendance: (attendance) => {
+      addAttendance: async (attendance) => {
         const schoolId = attendance.schoolId || get().currentUser?.schoolId || '';
-        const id = generateId();
-        set((state) => ({
-          attendances: [...state.attendances, {
-            ...attendance,
-            id,
-            schoolId,
-            createdAt: new Date().toISOString()
-          }]
-        }));
+        try {
+          const created = await api.attendances.create({ ...attendance, school_id: schoolId });
+          const newAttendance = { ...attendance, id: created.id || created.data?.id || generateId(), schoolId, createdAt: new Date().toISOString() };
+          set((state) => ({ attendances: [...state.attendances, newAttendance] }));
+        } catch {
+          const id = generateId();
+          set((state) => ({ attendances: [...state.attendances, { ...attendance, id, schoolId, createdAt: new Date().toISOString() }] }));
+        }
       },
-      updateAttendance: (id, updatedAttendance) => {
+      updateAttendance: async (id, updatedAttendance) => {
+        try {
+          await api.attendances.update(id, updatedAttendance);
+        } catch {
+          // Continue with local update
+        }
         set((state) => ({
           attendances: state.attendances.map(a => a.id === id ? { ...a, ...updatedAttendance } : a)
         }));
       },
-      deleteAttendance: (id) => {
+      deleteAttendance: async (id) => {
+        try {
+          await api.attendances.delete(id);
+        } catch {
+          // Continue with local delete
+        }
         set((state) => ({
           attendances: state.attendances.filter(a => a.id !== id)
         }));
       },
 
-      addPayment: (payment) => {
+      addPayment: async (payment) => {
         const schoolId = get().currentUser?.schoolId || '';
-        const id = generateId();
-        set((state) => ({
-          payments: [...state.payments, { ...payment, id, schoolId }]
-        }));
+        try {
+          const created = await api.payments.create({ ...payment, school_id: schoolId });
+          const newPayment = { ...payment, id: created.id || created.data?.id || generateId(), schoolId };
+          set((state) => ({ payments: [...state.payments, newPayment] }));
+        } catch {
+          const id = generateId();
+          set((state) => ({ payments: [...state.payments, { ...payment, id, schoolId }] }));
+        }
       },
-      updatePayment: (id, updatedPayment) => {
+      updatePayment: async (id, updatedPayment) => {
+        try {
+          await api.payments.update(id, updatedPayment);
+        } catch {
+          // Continue with local update
+        }
         set((state) => ({
           payments: state.payments.map(p => p.id === id ? { ...p, ...updatedPayment } : p)
         }));
       },
-      deletePayment: (id) => {
+      deletePayment: async (id) => {
+        try {
+          await api.payments.delete(id);
+        } catch {
+          // Continue with local delete
+        }
         set((state) => ({
           payments: state.payments.filter(p => p.id !== id)
         }));
@@ -686,62 +783,96 @@ export const useStore = create<AppState>()(
       addUser: (user) => {
         const id = (user as any).id || (user as any).email || (user as any).loginId || generateId();
         const schoolId = get().currentUser?.schoolId || (user as any).schoolId || '';
+        // Try API in background (non-blocking for backwards compat — addUser returns id synchronously)
+        api.users.create({ ...user, id, school_id: schoolId }).catch(() => {});
         set((state) => ({
           users: [...state.users.filter(u => u.id !== id), { ...user, id, schoolId } as User]
         }));
         return id;
       },
-      updateUser: (id, user) => {
+      updateUser: async (id, user) => {
+        try {
+          await api.users.update(id, user);
+        } catch {
+          // Continue with local update
+        }
         set((state) => ({
           users: state.users.map(u => u.id === id ? { ...u, ...user } : u)
         }));
       },
       deleteUser: async (id) => {
+        try {
+          await api.users.delete(id);
+        } catch {
+          // Continue with local delete
+        }
         set((state) => ({
           users: state.users.filter(u => u.id !== id)
         }));
       },
 
-      addTimeSlot: (slot) => {
+      addTimeSlot: async (slot) => {
         const schoolId = get().currentUser?.schoolId || '';
-        const id = generateId();
-        set((state) => ({
-          timeSlots: [...state.timeSlots, { ...slot, id, schoolId }]
-        }));
+        try {
+          const created = await api.timeslots.create({ ...slot, school_id: schoolId });
+          const newSlot = { ...slot, id: created.id || created.data?.id || generateId(), schoolId };
+          set((state) => ({ timeSlots: [...state.timeSlots, newSlot] }));
+        } catch {
+          const id = generateId();
+          set((state) => ({ timeSlots: [...state.timeSlots, { ...slot, id, schoolId }] }));
+        }
       },
-      updateTimeSlot: (id, slot) => {
+      updateTimeSlot: async (id, slot) => {
+        try {
+          await api.timeslots.update(id, slot);
+        } catch {
+          // Continue with local update
+        }
         set((state) => ({
           timeSlots: state.timeSlots.map(t => t.id === id ? { ...t, ...slot } : t)
         }));
       },
-      deleteTimeSlot: (id) => {
+      deleteTimeSlot: async (id) => {
+        try {
+          await api.timeslots.delete(id);
+        } catch {
+          // Continue with local delete
+        }
         set((state) => ({
           timeSlots: state.timeSlots.filter(t => t.id !== id)
         }));
       },
 
-      addProfessorRequest: (request) => {
+      addProfessorRequest: async (request) => {
         const schoolId = get().currentUser?.schoolId || '';
-        const id = generateId();
         const now = new Date().toISOString();
-        set((state) => ({
-          professorRequests: [...state.professorRequests, {
-            ...request,
-            id,
-            schoolId,
-            createdAt: now,
-            updatedAt: now
-          }]
-        }));
+        try {
+          const created = await api.requests.create({ ...request, school_id: schoolId });
+          const newReq = { ...request, id: created.id || created.data?.id || generateId(), schoolId, createdAt: now, updatedAt: now };
+          set((state) => ({ professorRequests: [...state.professorRequests, newReq] }));
+        } catch {
+          const id = generateId();
+          set((state) => ({ professorRequests: [...state.professorRequests, { ...request, id, schoolId, createdAt: now, updatedAt: now }] }));
+        }
       },
-      updateProfessorRequest: (id, request) => {
+      updateProfessorRequest: async (id, request) => {
+        try {
+          await api.requests.update(id, request);
+        } catch {
+          // Continue with local update
+        }
         set((state) => ({
           professorRequests: state.professorRequests.map(r =>
             r.id === id ? { ...r, ...request, updatedAt: new Date().toISOString() } : r
           )
         }));
       },
-      deleteProfessorRequest: (id) => {
+      deleteProfessorRequest: async (id) => {
+        try {
+          await api.requests.delete(id);
+        } catch {
+          // Continue with local delete
+        }
         set((state) => ({
           professorRequests: state.professorRequests.filter(r => r.id !== id)
         }));
@@ -848,40 +979,103 @@ export const useStore = create<AppState>()(
 
       setCurrentUser: (user) => set({ currentUser: user }),
       setStore: (newState) => set(newState),
-      login: (identifier: string, password?: string) => {
-        const state = get();
-        // SuperAdmin shortcut
-        if ((identifier === '26' || identifier === 'cydrovis@gmail.com') && password === 'admin123') {
-          const superAdmin: User = {
-            id: 'super-admin',
-            name: 'Super Administrateur',
-            role: 'SuperAdmin',
-            email: 'cydrovis@gmail.com',
-            status: 'Actif',
-            permissions: {
-              planning: { view: true, add: true, edit: true, delete: true },
-              payroll: { view: true, add: true, edit: true, delete: true },
-              users: { view: true, add: true, edit: true, delete: true },
-              settings: { view: true, add: true, edit: true, delete: true },
-            }
-          };
-          set({ currentUser: superAdmin });
-          return true;
+
+      login: async (identifier: string, password?: string) => {
+        try {
+          const response = await api.auth.login(identifier, password || '');
+          const token = response.token || response.data?.token;
+          const userData = response.user || response.data?.user;
+          if (token) {
+            setToken(token);
+          }
+          if (userData) {
+            // Normalize snake_case → camelCase
+            const user: User = {
+              id: userData.id,
+              schoolId: userData.school_id || userData.schoolId,
+              schoolCode: userData.school_code || userData.schoolCode,
+              schoolEmail: userData.school_email || userData.schoolEmail,
+              name: userData.name || `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
+              email: userData.email,
+              loginId: userData.login_id || userData.loginId || identifier,
+              role: userData.role as Role,
+              status: userData.status || 'Actif',
+              permissions: userData.permissions || {
+                planning: { view: true, add: true, edit: true, delete: true },
+                payroll: { view: true, add: true, edit: true, delete: true },
+                users: { view: true, add: true, edit: true, delete: true },
+                settings: { view: true, add: true, edit: true, delete: true },
+              },
+            };
+            set({ currentUser: user });
+            return true;
+          }
+          return false;
+        } catch {
+          return false;
         }
-        // Search in local users
-        const user = state.users.find(u =>
-          (u.email === identifier || u.loginId === identifier ||
-           u.schoolCode === identifier || u.schoolEmail === identifier) &&
-          u.password === password
-        );
-        if (user) {
-          set({ currentUser: user });
-          return true;
-        }
-        return false;
       },
+
       logout: () => {
+        removeToken();
         set({ currentUser: null });
+      },
+
+      syncFromAPI: async (schoolId: string) => {
+        const params = { school_id: schoolId };
+        try {
+          const [
+            professorsRes,
+            classesRes,
+            subjectsRes,
+            roomsRes,
+            coursesRes,
+            attendancesRes,
+            paymentsRes,
+            timeslotsRes,
+            requestsRes,
+          ] = await Promise.allSettled([
+            api.professors.list(params),
+            api.classes.list(params),
+            api.subjects.list(params),
+            api.rooms.list(params),
+            api.courses.list(params),
+            api.attendances.list(params),
+            api.payments.list(params),
+            api.timeslots.list(params),
+            api.requests.list(params),
+          ]);
+
+          const extract = (res: PromiseSettledResult<any>) =>
+            res.status === 'fulfilled'
+              ? (Array.isArray(res.value) ? res.value : res.value?.data || res.value?.items || [])
+              : [];
+
+          // Map snake_case fields to camelCase for each entity
+          const mapProfessor = (p: any) => ({ ...p, schoolId: p.school_id || p.schoolId, subjectIds: p.subject_ids || p.subjectIds || [], availabilities: p.availabilities || [], contractType: p.contract_type || p.contractType, hourlyRate: p.hourly_rate || p.hourlyRate, hireDate: p.hire_date || p.hireDate, birthDate: p.birth_date || p.birthDate, photoUrl: p.photo_url || p.photoUrl });
+          const mapClass = (c: any) => ({ ...c, schoolId: c.school_id || c.schoolId, createdAt: c.created_at || c.createdAt, mainTeacherId: c.main_teacher_id || c.mainTeacherId });
+          const mapSubject = (s: any) => ({ ...s, schoolId: s.school_id || s.schoolId, createdAt: s.created_at || s.createdAt, weeklyHours: s.weekly_hours || s.weeklyHours });
+          const mapRoom = (r: any) => ({ ...r, schoolId: r.school_id || r.schoolId });
+          const mapCourse = (c: any) => ({ ...c, schoolId: c.school_id || c.schoolId, professorId: c.professor_id || c.professorId, classId: c.class_id || c.classId, subjectId: c.subject_id || c.subjectId, roomId: c.room_id || c.roomId, startTime: c.start_time || c.startTime, endTime: c.end_time || c.endTime, professorEmail: c.professor_email || c.professorEmail });
+          const mapAttendance = (a: any) => ({ ...a, schoolId: a.school_id || a.schoolId, professorId: a.professor_id || a.professorId, classId: a.class_id || a.classId, subjectId: a.subject_id || a.subjectId, courseId: a.course_id || a.courseId, plannedStartTime: a.planned_start_time || a.plannedStartTime, plannedEndTime: a.planned_end_time || a.plannedEndTime, actualStartTime: a.actual_start_time || a.actualStartTime, actualEndTime: a.actual_end_time || a.actualEndTime, replacementProfessorId: a.replacement_professor_id || a.replacementProfessorId, calculatedHours: a.calculated_hours || a.calculatedHours, createdAt: a.created_at || a.createdAt, scannedAt: a.scanned_at || a.scannedAt, validatedByAdmin: a.validated_by_admin || a.validatedByAdmin });
+          const mapPayment = (p: any) => ({ ...p, schoolId: p.school_id || p.schoolId, professorId: p.professor_id || p.professorId, normalHours: p.normal_hours || p.normalHours, overtimeHours: p.overtime_hours || p.overtimeHours, missedHours: p.missed_hours || p.missedHours, plannedHours: p.planned_hours || p.plannedHours, paidAt: p.paid_at || p.paidAt, paymentMethod: p.payment_method || p.paymentMethod });
+          const mapTimeslot = (t: any) => ({ ...t, schoolId: t.school_id || t.schoolId, startTime: t.start_time || t.startTime, endTime: t.end_time || t.endTime });
+          const mapRequest = (r: any) => ({ ...r, schoolId: r.school_id || r.schoolId, professorId: r.professor_id || r.professorId, courseId: r.course_id || r.courseId, createdAt: r.created_at || r.createdAt, updatedAt: r.updated_at || r.updatedAt });
+
+          set({
+            professors: extract(professorsRes).map(mapProfessor),
+            classes: extract(classesRes).map(mapClass),
+            subjects: extract(subjectsRes).map(mapSubject),
+            rooms: extract(roomsRes).map(mapRoom),
+            courses: extract(coursesRes).map(mapCourse),
+            attendances: extract(attendancesRes).map(mapAttendance),
+            payments: extract(paymentsRes).map(mapPayment),
+            timeSlots: extract(timeslotsRes).map(mapTimeslot),
+            professorRequests: extract(requestsRes).map(mapRequest),
+          });
+        } catch (err) {
+          console.warn('[syncFromAPI] Failed to sync data:', err);
+        }
       },
     }),
     {
