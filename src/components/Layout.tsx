@@ -30,7 +30,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 const navigation = [
-  { name: 'Accueil', href: '/admin', icon: Home },
+  { name: 'Accueil', href: '/admin', icon: Home, end: true },
   { name: 'Tableau de bord', href: '/admin/dashboard', icon: LayoutDashboard },
   { name: 'Professeurs', href: '/admin/professors', icon: Users },
   { name: 'Classes & Matières', href: '/admin/classes', icon: BookOpen },
@@ -164,6 +164,7 @@ export function Layout() {
               <NavLink
                 key={item.name}
                 to={item.href!}
+                end={item.end}
                 onClick={() => {
                   setIsSidebarOpen(false);
                   setExpandedMenu(null);
