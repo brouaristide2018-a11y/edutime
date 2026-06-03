@@ -9,3 +9,6 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Secrets de déploiement (NE JAMAIS committer)
+deploy.secrets.ps1

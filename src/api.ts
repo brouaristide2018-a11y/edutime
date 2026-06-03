@@ -36,9 +36,18 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
   });
 
   if (response.status === 401) {
-    removeToken();
-    window.location.href = '/login';
-    throw new Error('Session expirée. Veuillez vous reconnecter.');
+    // Ne PAS rediriger si c'est une tentative de login (mauvais identifiants)
+    // La redirection ne s'applique qu'aux sessions expirées (token invalide)
+    if (!path.startsWith('/api/auth/login') && !path.startsWith('/api/auth/register')) {
+      removeToken();
+      window.location.href = '/login';
+    }
+    let errorMsg = 'Identifiants ou mot de passe incorrect.';
+    try {
+      const d = await response.clone().json();
+      errorMsg = d.error || d.message || errorMsg;
+    } catch {}
+    throw new Error(errorMsg);
   }
 
   if (!response.ok) {

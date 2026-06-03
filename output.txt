@@ -1,0 +1,7 @@
+=== DEBUT SCRIPT ===
+DELETE app existante: 404 — {"message":"Application not found"}
+CREATE app GitHub: 201
+{
+  "uuid": "g14auw272friem0ohlnfgm0t",
+  "domains": "http://g14auw272friem0ohlnfgm0t.178.105.62.20.sslip.io"
+}
