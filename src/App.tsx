@@ -60,7 +60,11 @@ export default function App() {
 
   useEffect(() => {
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      // Aucun JWT valide → effacer tout utilisateur persisté (sécurité)
+      setCurrentUser(null);
+      return;
+    }
 
     // Validate existing token and reload user data
     api.auth.me()

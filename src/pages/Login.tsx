@@ -29,8 +29,6 @@ export function Login() {
   const [pwdChangeError, setPwdChangeError]       = useState('');
 
   const platformSettings = useStore(state => state.platformSettings);
-  const addRegistration  = useStore(state => state.addRegistration);
-  const addUser          = useStore(state => state.addUser);
   const login            = useStore(state => state.login);
   const syncFromAPI      = useStore(state => state.syncFromAPI);
   const navigate         = useNavigate();
@@ -53,38 +51,20 @@ export function Login() {
 
   // ─── Inscription ────────────────────────────────────────────────────────────
   const handleRegister = async (formData: any) => {
+    setIsLoading(true);
+    setError('');
     try {
-      setIsLoading(true);
-      setError('');
-      try {
-        await api.auth.register(formData);
-      } catch {
-        const schoolId = `school_${Math.random().toString(36).substr(2, 9)}`;
-        addUser({
-          id: formData.emailEtablissement,
-          name: formData.nomEtablissement,
-          email: formData.emailEtablissement,
-          password: formData.password,
-          role: 'Admin' as const,
-          status: 'En attente' as const,
-          schoolId,
-          schoolCode: formData.codeEtablissement,
-          schoolEmail: formData.emailEtablissement,
-          subscriptionStatus: 'inactive' as const,
-          lastLogin: new Date().toISOString(),
-          permissions: {
-            planning: { view: true, add: true, edit: true, delete: true },
-            payroll:  { view: true, add: true, edit: true, delete: true },
-            users:    { view: true, add: true, edit: true, delete: true },
-            settings: { view: true, add: true, edit: true, delete: true },
-          },
-        });
-        addRegistration({ ...formData, schoolId, status: 'En attente', createdAt: new Date().toISOString() });
-      }
+      await api.auth.register(formData);
       setRegistrationSuccess(true);
       setIsRegistering(false);
-    } catch {
-      setError("Erreur lors de l'inscription. Veuillez réessayer.");
+    } catch (err: any) {
+      // En cas d'échec, NE PAS créer de compte local — la connexion exige un compte DB réel
+      const msg = err?.message || '';
+      if (msg.includes('déjà utilisé') || msg.includes('409')) {
+        setError('Cet email est déjà utilisé. Veuillez en choisir un autre.');
+      } else {
+        setError("Erreur lors de l'inscription. Vérifiez votre connexion et réessayez.");
+      }
     } finally {
       setIsLoading(false);
     }
