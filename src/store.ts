@@ -306,7 +306,7 @@ export interface Registration {
   adresse?: string;
   ville?: string;
   schoolId: string;
-  status: 'En attente' | 'Validé' | 'Rejeté' | 'Suspendu';
+  status: 'En attente' | 'Validé' | 'Rejeté' | 'Suspendu' | 'Supprimé';
   createdAt: string;
   [key: string]: any;
 }
@@ -1311,7 +1311,7 @@ export const useStore = create<AppState>()(
           const apiSettings = settingsRes.status === 'fulfilled' ? settingsRes.value : null;
           const d = apiSettings?.data || {};
           const settingsUpdate: Partial<Settings> = {
-            schoolName: apiSettings?.school_name || currentUser?.schoolName || '',
+            schoolName: apiSettings?.school_name || (currentUser as any)?.schoolName || '',
             logo:       apiSettings?.logo || '',
             address:    apiSettings?.address || d.address || '',
             phone:      apiSettings?.phone || d.phone || '',
