@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useStore, type Professor, type ContractType, type ProfessorStatus, type Gender } from '../store';
+import { api } from '../api';
 import { Plus, Edit2, Trash2, X, Search, Filter, Eye, Camera, CheckCircle2 } from 'lucide-react';
 import { parseISO } from 'date-fns';
 import { useToast } from '../components/Toast';
@@ -33,11 +34,13 @@ export function Professors() {
   const navigate = useNavigate();
   const location = useLocation();
   const { professors, courses, addProfessor, updateProfessor, deleteProfessor, settings, addUser, deleteUser, updateUser, users } = useStore();
+  const currentUser = useStore(state => state.currentUser);
   const { showToast } = useToast();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isConfirmAddOpen, setIsConfirmAddOpen] = useState(false);
   const [pendingFormData, setPendingFormData] = useState<typeof formData | null>(null);
+  const [isAddingProf, setIsAddingProf] = useState(false);
   const [viewingProfId, setViewingProfId] = useState<string | null>(null);
   const [isCustomSpecialty, setIsCustomSpecialty] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -245,37 +248,78 @@ export function Professors() {
     resetForm();
   };
 
-  const confirmAddProfessor = () => {
+  const confirmAddProfessor = async () => {
     if (!pendingFormData) return;
     const { _loginId, _adminUser, ...profData } = pendingFormData as any;
 
-    const userId = addUser({
-      name: `${profData.firstName} ${profData.lastName}`,
-      email: profData.email,
-      loginId: _loginId,
-      password: 'professeur',
-      role: 'Professeur',
-      status: profData.status,
-      schoolId: _adminUser?.schoolId,
-      permissions: {
-        planning: { view: true, add: false, edit: false, delete: false },
-        payroll: { view: true, add: false, edit: false, delete: false },
-        users: { view: false, add: false, edit: false, delete: false },
-        settings: { view: false, add: false, edit: false, delete: false },
-      }
-    });
-
-    addProfessor({ ...profData, availabilities: [], subjectIds: [], userId });
+    setIsAddingProf(true);
+    const schoolId = currentUser?.schoolId || _adminUser?.schoolId || '';
+    const name     = `${profData.firstName} ${profData.lastName}`;
+    const email    = profData.email || `${_loginId}@edutime.local`;
+    const perms    = {
+      planning: { view: true,  add: false, edit: false, delete: false },
+      payroll:  { view: true,  add: false, edit: false, delete: false },
+      users:    { view: false, add: false, edit: false, delete: false },
+      settings: { view: false, add: false, edit: false, delete: false },
+    };
 
     setIsConfirmAddOpen(false);
+
+    // ── Création du compte en DB (appel BLOQUANT — on attend la réponse) ──
+    let userId: string = _loginId;
+    try {
+      const created = await api.users.create({
+        name, email, login_id: _loginId, password: 'professeur',
+        role: 'Professeur', status: profData.status || 'Actif',
+        school_id: schoolId, permissions: perms,
+      });
+      userId = created?.id || _loginId;
+    } catch (err: any) {
+      const msg = (err?.message || '').toLowerCase();
+      if (msg.includes('409') || msg.includes('déjà') || msg.includes('conflict')) {
+        // L'utilisateur existe déjà en DB (tentative précédente) → mise à jour
+        try {
+          const existingList = await api.users.list({ school_id: schoolId });
+          const list = Array.isArray(existingList) ? existingList : (existingList?.data || []);
+          const existing = list.find((u: any) => u.login_id === _loginId);
+          if (existing) {
+            await api.users.update(existing.id, {
+              name, role: 'Professeur', status: profData.status || 'Actif',
+              permissions: perms, password: 'professeur', login_id: _loginId,
+            });
+            userId = existing.id;
+          }
+        } catch {
+          setIsAddingProf(false);
+          showToast(`❌ Impossible de créer le compte pour l'identifiant ${_loginId}. Réessayez.`, 'error', 7000);
+          setPendingFormData(null);
+          setIsModalOpen(false);
+          resetForm();
+          return;
+        }
+      } else {
+        setIsAddingProf(false);
+        showToast(`❌ Erreur serveur : ${err?.message || 'Connexion API impossible.'}`, 'error', 7000);
+        setPendingFormData(null);
+        setIsModalOpen(false);
+        resetForm();
+        return;
+      }
+    }
+
+    // ── Succès — enregistrement local ──────────────────────────────────────
+    addUser({ name, email, loginId: _loginId, password: 'professeur',
+              role: 'Professeur', status: profData.status, schoolId, permissions: perms });
+    addProfessor({ ...profData, availabilities: [], subjectIds: [], userId });
+
+    setIsAddingProf(false);
     setPendingFormData(null);
     setIsModalOpen(false);
     resetForm();
 
     showToast(
-      `✅ ${profData.firstName} ${profData.lastName} ajouté(e) — Identifiant : ${_loginId} | Mdp : professeur`,
-      'success',
-      7000
+      `✅ ${name} ajouté(e) — Identifiant : ${_loginId} | Mdp : professeur`,
+      'success', 7000
     );
   };
 
@@ -727,9 +771,18 @@ export function Professors() {
                 </button>
                 <button
                   onClick={confirmAddProfessor}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                  disabled={isAddingProf}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
                 >
-                  Confirmer
+                  {isAddingProf ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                      Création en cours...
+                    </>
+                  ) : 'Confirmer'}
                 </button>
               </div>
             </div>
