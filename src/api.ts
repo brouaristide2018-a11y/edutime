@@ -36,11 +36,14 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
   });
 
   if (response.status === 401) {
-    // Ne PAS rediriger si c'est une tentative de login (mauvais identifiants)
-    // La redirection ne s'applique qu'aux sessions expirées (token invalide)
-    if (!path.startsWith('/api/auth/login') && !path.startsWith('/api/auth/register')) {
+    const isAuthRoute = path.startsWith('/api/auth/login') || path.startsWith('/api/auth/register');
+    if (!isAuthRoute) {
       removeToken();
-      window.location.href = '/login';
+      // Rediriger seulement si on n'est pas déjà sur la page de login
+      // (évite le rechargement intempestif qui efface les messages d'erreur)
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     let errorMsg = 'Identifiants ou mot de passe incorrect.';
     try {
