@@ -1211,7 +1211,34 @@ export const useStore = create<AppState>()(
 
       logout: () => {
         removeToken();
-        set({ currentUser: null });
+        // Réinitialiser les settings école pour éviter la contamination entre établissements
+        set({
+          currentUser: null,
+          settings: {
+            schoolName: '',
+            logo: '',
+            address: '',
+            phone: '',
+            email: '',
+            currency: 'FCFA',
+            timezone: 'Africa/Abidjan',
+            dateFormat: 'DD/MM/YYYY',
+            language: 'fr',
+            toleranceTime: 10,
+            autoLateAfter: 15,
+            mandatoryAttendance: true,
+            allowedMethods: { manual: true, qrCode: false, geolocation: false },
+            validation: { auto: true, admin: false },
+            defaultHourlyRate: 5000,
+            overtimeEnabled: true,
+            overtimeCoefficient: 1.25,
+            deductions: { absence: true, lateness: true, advance: true },
+            rounding: '15',
+            notifications: { email: true, sms: false, whatsapp: false, triggers: { professorAbsence: true, scheduleChange: true, paymentMade: true } },
+            security: { minPasswordLength: 8, twoFactorAuth: false, sessionExpiration: 120 },
+            integrations: { googleCalendar: false, excelExport: true, mobileMoney: false },
+          },
+        });
       },
 
       syncFromAPI: async (schoolId: string) => {
@@ -1228,6 +1255,7 @@ export const useStore = create<AppState>()(
             timeslotsRes,
             requestsRes,
             usersRes,
+            settingsRes,
           ] = await Promise.allSettled([
             api.professors.list(params),
             api.classes.list(params),
@@ -1239,6 +1267,7 @@ export const useStore = create<AppState>()(
             api.timeslots.list(params),
             api.requests.list(params),
             api.users.list(params),
+            api.settings.get(),
           ]);
 
           const extract = (res: PromiseSettledResult<any>) =>
@@ -1277,6 +1306,35 @@ export const useStore = create<AppState>()(
             (u: any) => !dbIds.has(u.id) && !dbLoginIds.has(u.loginId) && u.id !== currentUser?.id
           );
 
+          // Toujours mettre à jour les settings depuis la DB pour éviter la contamination
+          // entre établissements (données stale dans localStorage)
+          const apiSettings = settingsRes.status === 'fulfilled' ? settingsRes.value : null;
+          const d = apiSettings?.data || {};
+          const settingsUpdate: Partial<Settings> = {
+            schoolName: apiSettings?.school_name || currentUser?.schoolName || '',
+            logo:       apiSettings?.logo || '',
+            address:    apiSettings?.address || d.address || '',
+            phone:      apiSettings?.phone || d.phone || '',
+            email:      apiSettings?.email || d.email || '',
+            currency:          d.currency          ?? 'FCFA',
+            timezone:          d.timezone          ?? 'Africa/Abidjan',
+            dateFormat:        d.dateFormat        ?? 'DD/MM/YYYY',
+            language:          d.language          ?? 'fr',
+            toleranceTime:     d.toleranceTime     ?? 10,
+            autoLateAfter:     d.autoLateAfter     ?? 15,
+            mandatoryAttendance: d.mandatoryAttendance ?? true,
+            allowedMethods:    d.allowedMethods    ?? { manual: true, qrCode: false, geolocation: false },
+            validation:        d.validation        ?? { auto: true, admin: false },
+            defaultHourlyRate: d.defaultHourlyRate ?? 5000,
+            overtimeEnabled:   d.overtimeEnabled   ?? true,
+            overtimeCoefficient: d.overtimeCoefficient ?? 1.25,
+            deductions:        d.deductions        ?? { absence: true, lateness: true, advance: true },
+            rounding:          d.rounding          ?? '15',
+            notifications:     d.notifications     ?? { email: true, sms: false, whatsapp: false, triggers: { professorAbsence: true, scheduleChange: true, paymentMade: true } },
+            security:          d.security          ?? { minPasswordLength: 8, twoFactorAuth: false, sessionExpiration: 120 },
+            integrations:      d.integrations      ?? { googleCalendar: false, excelExport: true, mobileMoney: false },
+          };
+
           set({
             professors: extract(professorsRes).map(mapProfessor),
             classes: extract(classesRes).map(mapClass),
@@ -1288,6 +1346,7 @@ export const useStore = create<AppState>()(
             timeSlots: extract(timeslotsRes).map(mapTimeslot),
             professorRequests: extract(requestsRes).map(mapRequest),
             users: syncedUsers.length > 0 ? [...syncedUsers, ...localOnly] : localUsers,
+            settings: { ...get().settings, ...settingsUpdate },
           });
         } catch (err) {
           console.warn('[syncFromAPI] Failed to sync data:', err);
