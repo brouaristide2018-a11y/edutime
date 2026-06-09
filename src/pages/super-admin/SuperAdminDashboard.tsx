@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../../store';
+import { api } from '../../api';
 import { Building2, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
 
@@ -24,11 +25,17 @@ export function SuperAdminDashboard() {
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
-  const handleValidate = () => {
+  const handleValidate = async () => {
     if (!regToValidate) return;
+    try {
+      // Appel API pour valider (active aussi le compte Admin côté serveur)
+      await api.superAdmin.updateRegistration(regToValidate.id, { status: 'Validé' });
+    } catch { /* fallback local */ }
     updateRegistration(regToValidate.id, { status: 'Validé' });
     updateUser(regToValidate.emailEtablissement, { status: 'Actif' });
     setRegToValidate(null);
+    // Resync pour refléter les changements
+    useStore.getState().syncSuperAdmin().catch(() => {});
   };
 
   const handleApproveSubscription = () => {
@@ -45,11 +52,15 @@ export function SuperAdminDashboard() {
     setSubToApprove(null);
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!regToReject) return;
+    try {
+      await api.superAdmin.updateRegistration(regToReject.id, { status: 'Rejeté' });
+    } catch { /* fallback local */ }
     updateRegistration(regToReject.id, { status: 'Rejeté' });
     updateUser(regToReject.emailEtablissement, { status: 'Rejeté' });
     setRegToReject(null);
+    useStore.getState().syncSuperAdmin().catch(() => {});
   };
 
   const handleResetDatabase = () => {

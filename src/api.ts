@@ -246,18 +246,31 @@ export const api = {
 
   // --- Super Admin ---
   superAdmin: {
+    // Registrations (inscriptions)
     getRegistrations: () => apiFetch('/api/super-admin/registrations'),
-    validateRegistration: (id: string) =>
-      apiFetch(`/api/super-admin/registrations/${id}/validate`, { method: 'POST' }),
-    rejectRegistration: (id: string, reason?: string) =>
-      apiFetch(`/api/super-admin/registrations/${id}/reject`, {
-        method: 'POST',
-        body: JSON.stringify({ reason }),
-      }),
-    getDashboard: () => apiFetch('/api/super-admin/dashboard'),
-    resetDatabase: () => apiFetch('/api/super-admin/reset-database', { method: 'POST' }),
-    getSettings: () => apiFetch('/api/super-admin/settings'),
-    updateSettings: (data: Record<string, any>) =>
-      apiFetch('/api/super-admin/settings', { method: 'PUT', body: JSON.stringify(data) }),
+    updateRegistration: (id: string, data: Record<string, any>) =>
+      apiFetch(`/api/super-admin/registrations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    // Schools
+    getSchools: () => apiFetch('/api/super-admin/schools'),
+    updateSchoolStatus: (schoolId: string, status: string) =>
+      apiFetch(`/api/super-admin/schools/${schoolId}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    // Support
+    getSupport: () => apiFetch('/api/super-admin/support'),
+    updateSupport: (id: string, data: Record<string, any>) =>
+      apiFetch(`/api/super-admin/support/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    // Platform settings
+    getPlatformSettings: () => apiFetch('/api/super-admin/platform-settings'),
+    updatePlatformSettings: (data: Record<string, any>) =>
+      apiFetch('/api/super-admin/platform-settings', { method: 'PUT', body: JSON.stringify(data) }),
+    // Announcements
+    getAnnouncements: () => apiFetch('/api/super-admin/announcements'),
+    createAnnouncement: (data: Record<string, any>) =>
+      apiFetch('/api/super-admin/announcements', { method: 'POST', body: JSON.stringify(data) }),
+    updateAnnouncement: (id: string, data: Record<string, any>) =>
+      apiFetch(`/api/super-admin/announcements/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteAnnouncement: (id: string) =>
+      apiFetch(`/api/super-admin/announcements/${id}`, { method: 'DELETE' }),
+    // Reset
+    resetDatabase: () => apiFetch('/api/super-admin/reset-database', { method: 'DELETE' }),
   },
 };

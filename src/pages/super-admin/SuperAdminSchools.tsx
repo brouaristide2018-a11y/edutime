@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useStore } from '../../store';
+import { api } from '../../api';
 import { Building2, Ban, Trash2, CheckCircle, Settings as SettingsIcon } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { SchoolEditModal } from './SchoolEditModal';
@@ -18,21 +19,33 @@ export function SuperAdminSchools() {
   // Only show validated or suspended schools
   const schools = registrations.filter((r: any) => r.status === 'Validé' || r.status === 'Suspendu');
 
-  const handleToggleSuspend = () => {
+  const handleToggleSuspend = async () => {
     if (!schoolToSuspend) return;
     const newStatus = schoolToSuspend.status === 'Suspendu' ? 'Validé' : 'Suspendu';
     const newUserStatus = schoolToSuspend.status === 'Suspendu' ? 'Actif' : 'Suspendu';
-
+    try {
+      // Appel API pour suspendre/réactiver l'école
+      await api.superAdmin.updateSchoolStatus(schoolToSuspend.schoolId, newStatus === 'Validé' ? 'Actif' : 'Suspendu');
+    } catch { /* fallback local */ }
     updateRegistration(schoolToSuspend.id, { status: newStatus });
     updateUser(schoolToSuspend.emailEtablissement, { status: newUserStatus });
     setSchoolToSuspend(null);
+    useStore.getState().syncSuperAdmin().catch(() => {});
   };
 
   const handleDelete = async () => {
     if (!schoolToDelete) return;
-    await deleteUser(schoolToDelete.emailEtablissement);
+    try {
+      await api.superAdmin.updateSchoolStatus(schoolToDelete.schoolId, 'Suspendu');
+    } catch { /* fallback local */ }
+    if (schoolToDelete.userId) {
+      await deleteUser(schoolToDelete.userId).catch(() => {});
+    } else {
+      await deleteUser(schoolToDelete.emailEtablissement).catch(() => {});
+    }
     deleteRegistration(schoolToDelete.id);
     setSchoolToDelete(null);
+    useStore.getState().syncSuperAdmin().catch(() => {});
   };
 
   return (

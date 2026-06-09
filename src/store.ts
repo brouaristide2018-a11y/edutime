@@ -436,6 +436,7 @@ interface AppState {
   login: (identifier: string, password?: string) => Promise<boolean>;
   logout: () => void;
   syncFromAPI: (schoolId: string) => Promise<void>;
+  syncSuperAdmin: () => Promise<void>;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -1129,6 +1130,49 @@ export const useStore = create<AppState>()(
 
       setCurrentUser: (user) => set({ currentUser: user }),
       setStore: (newState) => set(newState),
+
+      syncSuperAdmin: async () => {
+        try {
+          const [schoolsRes, regsRes] = await Promise.allSettled([
+            api.superAdmin.getSchools(),
+            api.superAdmin.getRegistrations(),
+          ]);
+
+          // Mapper les registrations snake_case → camelCase
+          const mapReg = (r: any) => ({
+            id: r.id,
+            nomEtablissement: r.nom_etablissement || r.nomEtablissement || r.school_name || '',
+            emailEtablissement: r.email_etablissement || r.emailEtablissement || '',
+            codeEtablissement: r.code_etablissement || r.codeEtablissement || '',
+            directeurNom: r.directeur_nom || r.directeurNom || '',
+            directeurPrenom: r.directeur_prenom || r.directeurPrenom || '',
+            etablissementContact1: r.etablissement_contact1 || r.etablissementContact1 || '',
+            ville: r.ville || '',
+            drena: r.drena || '',
+            schoolId: r.school_id || r.schoolId || '',
+            status: r.status || 'En attente',
+            createdAt: r.created_at || r.createdAt || new Date().toISOString(),
+            userId: r.user_id || r.userId,
+            userStatus: r.user_status || r.userStatus,
+            data: r.data || {},
+          });
+
+          if (schoolsRes.status === 'fulfilled') {
+            const schools = Array.isArray(schoolsRes.value)
+              ? schoolsRes.value
+              : schoolsRes.value?.data || [];
+            // Mettre à jour les registrations avec les données complètes des écoles
+            set({ registrations: schools.map(mapReg) });
+          } else if (regsRes.status === 'fulfilled') {
+            const regs = Array.isArray(regsRes.value)
+              ? regsRes.value
+              : regsRes.value?.data || [];
+            set({ registrations: regs.map(mapReg) });
+          }
+        } catch (err) {
+          console.warn('[syncSuperAdmin] Failed:', err);
+        }
+      },
 
       login: async (identifier: string, password?: string) => {
         // Ne pas swallower l'erreur ici — la laisser remonter vers Login.tsx

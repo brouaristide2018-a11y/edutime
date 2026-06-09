@@ -9,11 +9,13 @@ export function SuperAdminHome() {
 
   const [isWiping, setIsWiping] = useState(false);
 
-  const totalSchools = registrations.filter(r => r.status === 'Validé').length;
+  const totalSchools   = registrations.filter(r => r.status === 'Validé').length;
   const pendingSchools = registrations.filter(r => r.status === 'En attente').length;
-  const activeTickets = supportTickets.filter(t => t.status === 'Ouvert').length;
-  const totalRevenue = totalSchools * 15000;
-  const totalUsers = users.length;
+  const activeTickets  = supportTickets.filter(t => t.status === 'Ouvert').length;
+  const totalRevenue   = totalSchools * 15000;
+  // Total users = tous les comptes enregistrés (Admin + Professeurs)
+  // On compte depuis registrations (1 par école) + les professeurs dans users
+  const totalUsers = users.length || registrations.length;
 
   const handleWipeData = () => {
     if (!window.confirm("Êtes-vous ABSOLUMENT sûr ? Cette action supprimera TOUTES les données opérationnelles (professeurs, classes, cours, paiements, etc.) et ne pourra pas être annulée.")) {

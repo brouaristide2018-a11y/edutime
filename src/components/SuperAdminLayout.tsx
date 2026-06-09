@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useStore } from '../store';
 import { Shield, Building2, LogOut, Home, CreditCard, LifeBuoy, Megaphone, ChevronDown, ChevronRight, School, Settings } from 'lucide-react';
@@ -8,6 +8,12 @@ export function SuperAdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const logout = useStore(state => state.logout);
+  const syncSuperAdmin = useStore(state => state.syncSuperAdmin);
+
+  // Synchroniser les données super admin depuis l'API au chargement
+  useEffect(() => {
+    syncSuperAdmin().catch(() => {});
+  }, []);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isEtablissementsExpanded, setIsEtablissementsExpanded] = useState(
     location.pathname.includes('/super-admin/inscriptions') || location.pathname.includes('/super-admin/etablissements')
