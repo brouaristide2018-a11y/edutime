@@ -187,11 +187,17 @@ export function SuperAdminSchools() {
   const [search, setSearch]       = useState('');
   const [selected, setSelected]   = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [toast, setToast]         = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [schoolToEdit, setSchoolToEdit]           = useState<any | null>(null);
   const [schoolToTrash, setSchoolToTrash]         = useState<any | null>(null);
   const [schoolToDelete, setSchoolToDelete]       = useState<any | null>(null);
   const [showMultiDelete, setShowMultiDelete]     = useState(false);
   const [schoolToSuspend, setSchoolToSuspend]     = useState<any | null>(null);
+
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // Séparer actifs/suspendus vs corbeille
   const activeSchools = registrations.filter(r =>
@@ -227,25 +233,39 @@ export function SuperAdminSchools() {
     const newStatus = schoolToSuspend.status === 'Suspendu' ? 'Actif' : 'Suspendu';
     try {
       await api.superAdmin.updateSchoolStatus(schoolToSuspend.schoolId, newStatus);
+      showToast(newStatus === 'Actif' ? 'Établissement réactivé ✓' : 'Établissement suspendu ✓');
       await refresh();
-    } catch { } finally { setIsLoading(false); setSchoolToSuspend(null); }
+    } catch (err: any) {
+      showToast(err?.message || 'Erreur lors de la mise à jour', 'error');
+    } finally { setIsLoading(false); setSchoolToSuspend(null); }
   };
 
   const handleTrash = async () => {
     if (!schoolToTrash) return;
+    if (!schoolToTrash.schoolId) {
+      showToast('Identifiant de l\'établissement introuvable', 'error');
+      setSchoolToTrash(null);
+      return;
+    }
     setIsLoading(true);
     try {
       await api.superAdmin.trashSchool(schoolToTrash.schoolId);
+      showToast('Établissement déplacé dans la corbeille ✓');
       await refresh();
-    } catch { } finally { setIsLoading(false); setSchoolToTrash(null); }
+    } catch (err: any) {
+      showToast(err?.message || 'Erreur lors du déplacement dans la corbeille', 'error');
+    } finally { setIsLoading(false); setSchoolToTrash(null); }
   };
 
   const handleRestore = async (school: any) => {
     setIsLoading(true);
     try {
       await api.superAdmin.restoreSchool(school.schoolId);
+      showToast('Établissement restauré ✓');
       await refresh();
-    } catch { } finally { setIsLoading(false); }
+    } catch (err: any) {
+      showToast(err?.message || 'Erreur lors de la restauration', 'error');
+    } finally { setIsLoading(false); }
   };
 
   const handlePermanentDelete = async () => {
@@ -253,18 +273,26 @@ export function SuperAdminSchools() {
     setIsLoading(true);
     try {
       await api.superAdmin.deleteSchool(schoolToDelete.schoolId);
+      showToast('Établissement supprimé définitivement ✓');
       await refresh();
-    } catch { } finally { setIsLoading(false); setSchoolToDelete(null); }
+    } catch (err: any) {
+      showToast(err?.message || 'Erreur lors de la suppression définitive', 'error');
+    } finally { setIsLoading(false); setSchoolToDelete(null); }
   };
 
   const handleMultiDelete = async () => {
     setIsLoading(true);
+    let errors = 0;
     try {
       const toDelete = currentList.filter(s => selected.includes(s.id));
       for (const s of toDelete) {
-        if (tab === 'actif') await api.superAdmin.trashSchool(s.schoolId).catch(() => {});
-        else await api.superAdmin.deleteSchool(s.schoolId).catch(() => {});
+        try {
+          if (tab === 'actif') await api.superAdmin.trashSchool(s.schoolId);
+          else await api.superAdmin.deleteSchool(s.schoolId);
+        } catch { errors++; }
       }
+      if (errors === 0) showToast(`${toDelete.length} établissement${toDelete.length > 1 ? 's' : ''} traité${toDelete.length > 1 ? 's' : ''} ✓`);
+      else showToast(`${errors} erreur${errors > 1 ? 's' : ''} sur ${toDelete.length} opération${toDelete.length > 1 ? 's' : ''}`, 'error');
       await refresh();
     } finally { setIsLoading(false); setShowMultiDelete(false); }
   };
@@ -273,6 +301,18 @@ export function SuperAdminSchools() {
 
   return (
     <div className="p-6 md:p-8 space-y-6">
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed top-5 right-5 z-[100] flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${
+          toast.type === 'error'
+            ? 'bg-red-600 text-white'
+            : 'bg-green-600 text-white'
+        }`}>
+          {toast.type === 'error' ? <AlertTriangle size={16} /> : <CheckCircle size={16} />}
+          {toast.msg}
+        </div>
+      )}
+
       {/* En-tête */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -413,7 +453,7 @@ export function SuperAdminSchools() {
                 </td>
                 {tab === 'corbeille' && (
                   <td className="px-4 py-4">
-                    <DaysChip days={daysLeft(school.createdAt)} />
+                    <DaysChip days={daysLeft(school.updatedAt || school.createdAt)} />
                   </td>
                 )}
                 {tab === 'actif' && (

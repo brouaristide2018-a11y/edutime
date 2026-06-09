@@ -1152,6 +1152,7 @@ export const useStore = create<AppState>()(
             schoolId: r.school_id || r.schoolId || '',
             status: r.status || 'En attente',
             createdAt: r.created_at || r.createdAt || new Date().toISOString(),
+            updatedAt: r.updated_at || r.updatedAt || r.created_at || r.createdAt || new Date().toISOString(),
             userId: r.user_id || r.userId,
             userStatus: r.user_status || r.userStatus,
             data: r.data || {},
