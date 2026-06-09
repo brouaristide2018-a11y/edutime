@@ -1099,39 +1099,37 @@ export const useStore = create<AppState>()(
       setStore: (newState) => set(newState),
 
       login: async (identifier: string, password?: string) => {
-        try {
-          const response = await api.auth.login(identifier, password || '');
-          const token = response.token || response.data?.token;
-          const userData = response.user || response.data?.user;
-          if (token) {
-            setToken(token);
-          }
-          if (userData) {
-            // Normalize snake_case → camelCase
-            const user: User = {
-              id: userData.id,
-              schoolId: userData.school_id || userData.schoolId,
-              schoolCode: userData.school_code || userData.schoolCode,
-              schoolEmail: userData.school_email || userData.schoolEmail,
-              name: userData.name || `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
-              email: userData.email,
-              loginId: userData.login_id || userData.loginId || identifier,
-              role: userData.role as Role,
-              status: userData.status || 'Actif',
-              permissions: userData.permissions || {
-                planning: { view: true, add: true, edit: true, delete: true },
-                payroll: { view: true, add: true, edit: true, delete: true },
-                users: { view: true, add: true, edit: true, delete: true },
-                settings: { view: true, add: true, edit: true, delete: true },
-              },
-            };
-            set({ currentUser: user });
-            return true;
-          }
-          return false;
-        } catch {
-          return false;
+        // Ne pas swallower l'erreur ici — la laisser remonter vers Login.tsx
+        // pour que le vrai message d'erreur de l'API soit affiché.
+        const response = await api.auth.login(identifier, password || '');
+        const token = response.token || response.data?.token;
+        const userData = response.user || response.data?.user;
+        if (token) {
+          setToken(token);
         }
+        if (userData) {
+          // Normalize snake_case → camelCase
+          const user: User = {
+            id: userData.id,
+            schoolId: userData.school_id || userData.schoolId,
+            schoolCode: userData.school_code || userData.schoolCode,
+            schoolEmail: userData.school_email || userData.schoolEmail,
+            name: userData.name || `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
+            email: userData.email,
+            loginId: userData.login_id || userData.loginId || identifier,
+            role: userData.role as Role,
+            status: userData.status || 'Actif',
+            permissions: userData.permissions || {
+              planning: { view: true, add: true, edit: true, delete: true },
+              payroll: { view: true, add: true, edit: true, delete: true },
+              users: { view: true, add: true, edit: true, delete: true },
+              settings: { view: true, add: true, edit: true, delete: true },
+            },
+          };
+          set({ currentUser: user });
+          return true;
+        }
+        return false;
       },
 
       logout: () => {
