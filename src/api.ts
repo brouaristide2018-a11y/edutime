@@ -254,6 +254,12 @@ export const api = {
     getSchools: () => apiFetch('/api/super-admin/schools'),
     updateSchoolStatus: (schoolId: string, status: string) =>
       apiFetch(`/api/super-admin/schools/${schoolId}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    trashSchool: (schoolId: string) =>
+      apiFetch(`/api/super-admin/schools/${schoolId}/trash`, { method: 'PUT' }),
+    restoreSchool: (schoolId: string) =>
+      apiFetch(`/api/super-admin/schools/${schoolId}/restore`, { method: 'PUT' }),
+    deleteSchool: (schoolId: string) =>
+      apiFetch(`/api/super-admin/schools/${schoolId}`, { method: 'DELETE' }),
     // Support
     getSupport: () => apiFetch('/api/super-admin/support'),
     updateSupport: (id: string, data: Record<string, any>) =>

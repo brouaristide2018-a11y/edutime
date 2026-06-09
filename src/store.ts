@@ -1295,6 +1295,13 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'edutime-storage-v2',
+      // Ne persister que les préférences utilisateur — toutes les données
+      // métier sont chargées depuis la DB via syncFromAPI au démarrage.
+      partialize: (state) => ({
+        currentUser:      state.currentUser,
+        settings:         state.settings,
+        platformSettings: state.platformSettings,
+      }),
     }
   )
 );
