@@ -884,10 +884,22 @@ export const useStore = create<AppState>()(
       addUser: (user) => {
         const id = (user as any).id || (user as any).email || (user as any).loginId || generateId();
         const schoolId = get().currentUser?.schoolId || (user as any).schoolId || '';
-        // Try API in background (non-blocking for backwards compat — addUser returns id synchronously)
-        api.users.create({ ...user, id, school_id: schoolId }).catch(() => {});
+        const loginId = (user as any).loginId;
+        // Si le prof n'a pas d'email, générer un email unique non-conflictant
+        const email = user.email || (loginId ? `${loginId}@edutime.local` : `${generateId()}@edutime.local`);
+        // Envoyer les bons champs snake_case à l'API (login_id et non loginId)
+        api.users.create({
+          name: user.name,
+          email,
+          login_id: loginId,
+          password: (user as any).password,
+          role: user.role,
+          status: user.status,
+          school_id: schoolId,
+          permissions: user.permissions,
+        }).catch(() => {});
         set((state) => ({
-          users: [...state.users.filter(u => u.id !== id), { ...user, id, schoolId } as User]
+          users: [...state.users.filter(u => u.id !== id), { ...user, id, schoolId, email } as User]
         }));
         return id;
       },
