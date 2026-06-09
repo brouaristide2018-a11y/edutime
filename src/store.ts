@@ -882,22 +882,42 @@ export const useStore = create<AppState>()(
       },
 
       addUser: (user) => {
-        const id = (user as any).id || (user as any).email || (user as any).loginId || generateId();
-        const schoolId = get().currentUser?.schoolId || (user as any).schoolId || '';
         const loginId = (user as any).loginId;
+        const schoolId = get().currentUser?.schoolId || (user as any).schoolId || '';
         // Si le prof n'a pas d'email, générer un email unique non-conflictant
         const email = user.email || (loginId ? `${loginId}@edutime.local` : `${generateId()}@edutime.local`);
-        // Envoyer les bons champs snake_case à l'API (login_id et non loginId)
-        api.users.create({
-          name: user.name,
-          email,
-          login_id: loginId,
-          password: (user as any).password,
-          role: user.role,
-          status: user.status,
-          school_id: schoolId,
+        // ID local provisoire (sera remplacé par l'UUID DB via syncFromAPI)
+        const id = (user as any).id || loginId || email || generateId();
+
+        // Envoyer les bons champs snake_case à l'API
+        const createPayload = {
+          name: user.name, email, login_id: loginId,
+          password: (user as any).password, role: user.role,
+          status: user.status, school_id: schoolId,
           permissions: user.permissions,
-        }).catch(() => {});
+        };
+
+        api.users.create(createPayload).catch(async () => {
+          // En cas de conflit (login_id déjà en DB depuis une tentative précédente),
+          // on récupère l'utilisateur existant et on met à jour son mot de passe + statut
+          try {
+            const existingList = await api.users.list({ school_id: schoolId });
+            const existing = (Array.isArray(existingList) ? existingList : existingList?.data || [])
+              .find((u: any) => u.login_id === loginId);
+            if (existing) {
+              await api.users.update(existing.id, {
+                name: createPayload.name, role: createPayload.role,
+                status: createPayload.status, permissions: createPayload.permissions,
+                password: (user as any).password, login_id: loginId,
+              });
+              // Corriger l'ID local pour qu'il corresponde à l'UUID DB
+              set((state) => ({
+                users: state.users.map(u => u.id === id ? { ...u, id: existing.id } : u)
+              }));
+            }
+          } catch { /* Sera corrigé au prochain syncFromAPI */ }
+        });
+
         set((state) => ({
           users: [...state.users.filter(u => u.id !== id), { ...user, id, schoolId, email } as User]
         }));
@@ -1162,6 +1182,7 @@ export const useStore = create<AppState>()(
             paymentsRes,
             timeslotsRes,
             requestsRes,
+            usersRes,
           ] = await Promise.allSettled([
             api.professors.list(params),
             api.classes.list(params),
@@ -1172,6 +1193,7 @@ export const useStore = create<AppState>()(
             api.payments.list(params),
             api.timeslots.list(params),
             api.requests.list(params),
+            api.users.list(params),
           ]);
 
           const extract = (res: PromiseSettledResult<any>) =>
@@ -1189,6 +1211,26 @@ export const useStore = create<AppState>()(
           const mapPayment = (p: any) => ({ ...p, schoolId: p.school_id || p.schoolId, professorId: p.professor_id || p.professorId, normalHours: p.normal_hours || p.normalHours, overtimeHours: p.overtime_hours || p.overtimeHours, missedHours: p.missed_hours || p.missedHours, plannedHours: p.planned_hours || p.plannedHours, paidAt: p.paid_at || p.paidAt, paymentMethod: p.payment_method || p.paymentMethod });
           const mapTimeslot = (t: any) => ({ ...t, schoolId: t.school_id || t.schoolId, startTime: t.start_time || t.startTime, endTime: t.end_time || t.endTime });
           const mapRequest = (r: any) => ({ ...r, schoolId: r.school_id || r.schoolId, professorId: r.professor_id || r.professorId, courseId: r.course_id || r.courseId, createdAt: r.created_at || r.createdAt, updatedAt: r.updated_at || r.updatedAt });
+          const mapUser = (u: any) => ({
+            id: u.id, name: u.name, email: u.email,
+            loginId: u.login_id || u.loginId,
+            role: u.role, status: u.status,
+            schoolId: u.school_id || u.schoolId,
+            schoolCode: u.school_code || u.schoolCode,
+            schoolEmail: u.school_email || u.schoolEmail,
+            permissions: u.permissions || {},
+          });
+
+          const syncedUsers = extract(usersRes).map(mapUser);
+          // Fusionner avec les users locaux en donnant priorité à la DB pour les doublons
+          const currentUser = get().currentUser;
+          const localUsers = get().users;
+          const dbIds = new Set(syncedUsers.map((u: any) => u.id));
+          const dbLoginIds = new Set(syncedUsers.map((u: any) => u.loginId).filter(Boolean));
+          // Conserver les users locaux qui ne sont pas encore en DB (ex: ajout en cours)
+          const localOnly = localUsers.filter(
+            (u: any) => !dbIds.has(u.id) && !dbLoginIds.has(u.loginId) && u.id !== currentUser?.id
+          );
 
           set({
             professors: extract(professorsRes).map(mapProfessor),
@@ -1200,6 +1242,7 @@ export const useStore = create<AppState>()(
             payments: extract(paymentsRes).map(mapPayment),
             timeSlots: extract(timeslotsRes).map(mapTimeslot),
             professorRequests: extract(requestsRes).map(mapRequest),
+            users: syncedUsers.length > 0 ? [...syncedUsers, ...localOnly] : localUsers,
           });
         } catch (err) {
           console.warn('[syncFromAPI] Failed to sync data:', err);
