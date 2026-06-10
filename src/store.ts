@@ -1276,7 +1276,7 @@ export const useStore = create<AppState>()(
               : [];
 
           // Map snake_case fields to camelCase for each entity
-          const mapProfessor = (p: any) => ({ ...p, schoolId: p.school_id || p.schoolId, subjectIds: p.subject_ids || p.subjectIds || [], availabilities: p.availabilities || [], contractType: p.contract_type || p.contractType, hourlyRate: p.hourly_rate || p.hourlyRate, hireDate: p.hire_date || p.hireDate, birthDate: p.birth_date || p.birthDate, photoUrl: p.photo_url || p.photoUrl });
+          const mapProfessor = (p: any) => ({ ...p, schoolId: p.school_id || p.schoolId, subjectIds: p.subject_ids || p.subjectIds || [], availabilities: p.availabilities || [], contractType: p.contract_type || p.contractType, hourlyRate: p.hourly_rate || p.hourlyRate, hireDate: p.hire_date || p.hireDate, birthDate: p.birth_date || p.birthDate, photoUrl: p.photo_url || p.photoUrl, userId: p.user_id || p.userId || undefined });
           const mapClass = (c: any) => ({ ...c, schoolId: c.school_id || c.schoolId, createdAt: c.created_at || c.createdAt, mainTeacherId: c.main_teacher_id || c.mainTeacherId });
           const mapSubject = (s: any) => ({ ...s, schoolId: s.school_id || s.schoolId, createdAt: s.created_at || s.createdAt, weeklyHours: s.weekly_hours || s.weeklyHours });
           const mapRoom = (r: any) => ({ ...r, schoolId: r.school_id || r.schoolId });
