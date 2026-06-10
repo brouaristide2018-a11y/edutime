@@ -175,7 +175,11 @@ export function Professors() {
       } else {
         // Professor exists but has no userId, create the user
         const adminUser = users.find(u => u.role === 'Admin');
-        const schoolCode = adminUser?.schoolCode || '310682';
+        const schoolCode = currentUser?.schoolCode || adminUser?.schoolCode || '';
+        if (!schoolCode) {
+          showToast("Code établissement introuvable. Reconnectez-vous.", 'error');
+          return;
+        }
         const profUsers = users.filter(u => u.role === 'Professeur' && u.loginId?.startsWith(schoolCode));
         let nextSuffix = 1;
         if (profUsers.length > 0) {
@@ -222,7 +226,13 @@ export function Professors() {
 
       // Generate login ID sequentially based on school code
       const adminUser = users.find(u => u.role === 'Admin');
-      const schoolCode = adminUser?.schoolCode || '310682';
+      const schoolCode = currentUser?.schoolCode || adminUser?.schoolCode || '';
+      if (!schoolCode) {
+        showToast("Code établissement introuvable. Reconnectez-vous.", 'error');
+        setIsModalOpen(false);
+        resetForm();
+        return;
+      }
       
       // Find the highest existing professor suffix for this school code
       const profUsers = users.filter(u => u.role === 'Professeur' && u.loginId?.startsWith(schoolCode));

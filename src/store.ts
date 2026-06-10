@@ -537,7 +537,7 @@ export const useStore = create<AppState>()(
           contract_type: prof.contractType, hourly_rate: prof.hourlyRate,
           status: prof.status, hire_date: prof.hireDate,
           subject_ids: prof.subjectIds || [], availabilities: prof.availabilities || [],
-          photo_url: prof.photoUrl,
+          photo_url: prof.photoUrl, user_id: prof.userId || null,
         };
         try {
           const created = await api.professors.create(payload);
